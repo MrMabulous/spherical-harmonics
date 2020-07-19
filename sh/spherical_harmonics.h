@@ -160,6 +160,11 @@ std::unique_ptr<std::vector<double>> ProjectSparseSamples(
     int order, const std::vector<Eigen::Vector3d>& dirs,
     const std::vector<double>& values);
 
+// Weighted version of ProjectSparseSamples.
+std::unique_ptr<std::vector<double>> ProjectWeightedSparseSamples(
+    int order, const std::vector<Eigen::Vector3d>& dirs,
+    const std::vector<double>& values, const std::vector<double>& weights);
+
 // Evaluate the already computed coefficients for the SH basis functions up
 // to @order, at the coordinates @phi and @theta. The length of the @coeffs
 // vector must be equal to GetCoefficientCount(order).
