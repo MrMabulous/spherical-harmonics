@@ -743,6 +743,54 @@ std::unique_ptr<std::vector<double>> ProjectSparseSamples(
   return coeffs;
 }
 
+std::unique_ptr<std::vector<double>> ProjectWeightedSparseSamples(
+    int order, const std::vector<Eigen::Vector3d>& dirs, 
+    const std::vector<double>& values, const std::vector<double>& weights) {
+  CHECK(order >= 0, "Order must be at least zero.");
+  CHECK(dirs.size() == values.size(),
+      "Directions and values must have the same size.");
+  CHECK(dirs.size() == weights.size(),
+      "Directions and weights must have the same size.");
+
+  // Solve a weighted linear least squares system W^(1/2)*Ax = W^(1/2)*b
+  // for the coefficients, x. Each row in the matrix A are the values of the
+  // spherical harmonic basis functions evaluated at that sample's direction
+  // (from @dirs). The corresponding row in b is the value in @values.
+  std::unique_ptr<std::vector<double>> coeffs(new std::vector<double>());
+  coeffs->assign(GetCoefficientCount(order), 0.0);
+
+  Eigen::MatrixXd basis_values(dirs.size(), coeffs->size());
+  Eigen::VectorXd func_values(dirs.size());
+  Eigen::VectorXd weight_values(dirs.size());
+  Eigen::DiagonalMatrix<double, Eigen::Dynamic> W(dirs.size());
+
+  double phi, theta;
+  for (unsigned int i = 0; i < dirs.size(); i++) {
+    func_values(i) = values[i];
+    weight_values(i)=sqrt(weights[i]);
+    ToSphericalCoords(dirs[i], &phi, &theta);
+
+    for (int l = 0; l <= order; l++) {
+      for (int m = -l; m <= l; m++) {
+        basis_values(i, GetIndex(l, m)) = EvalSH(l, m, phi, theta);
+      }
+    }
+  }
+
+  W.diagonal() = weight_values;
+
+  // Use SVD to find the least squares fit for the coefficients of the basis
+  // functions that best match the data
+  Eigen::VectorXd soln = (W * basis_values).jacobiSvd(
+      Eigen::ComputeThinU | Eigen::ComputeThinV).solve(W * func_values);
+
+  // Copy everything over to our coeffs array
+  for (unsigned int i = 0; i < coeffs->size(); i++) {
+    (*coeffs)[i] = soln(i);
+  }
+  return coeffs;
+}
+
 template <typename T>
 T EvalSHSum(int order, const std::vector<T>& coeffs, double phi, double theta) {
   if (order <= kHardCodedOrderLimit) {
