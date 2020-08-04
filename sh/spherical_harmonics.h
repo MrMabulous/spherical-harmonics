@@ -47,7 +47,20 @@ namespace sh {
 
 // A spherical function, the first argument is phi, the second is theta.
 // See EvalSH(int, int, double, double) for a description of these terms.
-typedef std::function<double(double, double)> SphericalFunction;
+template<typename T, typename S>
+using SphericalFunction = std::function<T(S, S)>;
+
+// A 3d vector of type T
+template <typename T>
+using Vector3 = Eigen::Matrix<T, 3, 1>;
+
+// A 2d vector of type T
+template <typename T>
+using Vector2 = Eigen::Matrix<T, 2, 1>;
+
+// A matrix of dynamic size and type T
+template <typename T>
+using MatrixX = Eigen::Matrix<T, Eigen::Dynamic, Eigen::Dynamic>;
 
 const int kDefaultSampleCount = 10000;
 
@@ -68,13 +81,15 @@ constexpr int GetIndex(int l, int m) {
 // Convert from spherical coordinates to a direction vector. @phi represents
 // the rotation about the Z axis and is from [0, 2pi]. @theta represents the
 // angle down from the Z axis, from [0, pi].
-Eigen::Vector3d ToVector(double phi, double theta);
+template <typename S>
+Vector3<S> ToVector(S phi, S theta);
 
 // Convert from a direction vector to its spherical coordinates. The
 // coordinates are written out to @phi and @theta. This is the inverse of
 // ToVector.
 // Check will fail if @dir is not unit.
-void ToSphericalCoords(const Eigen::Vector3d& dir, double* phi, double* theta);
+template <typename S>
+void ToSphericalCoords(const Vector3<S>& dir, S* phi, S* theta);
 
 // Convert the (x, y) pixel coordinates into spherical coordinates (phi, theta)
 // suitable for use with spherical harmonic evaluation. The x image axis maps
@@ -89,8 +104,11 @@ void ToSphericalCoords(const Eigen::Vector3d& dir, double* phi, double* theta);
 //
 // The x and y functions are separated because they can be computed
 // independently, unlike ToImageCoords.
-double ImageXToPhi(int x, int width);
-double ImageYToTheta(int y, int height);
+template <typename S>
+S ImageXToPhi(int x, int width);
+
+template <typename S>
+S ImageYToTheta(int y, int height);
 
 // Convert the (phi, theta) spherical coordinates (using the convention
 // defined spherical_harmonics.h) to pixel coordinates (x, y). The pixel
@@ -98,31 +116,36 @@ double ImageYToTheta(int y, int height);
 // image. This is the inverse of ImageCoordsToSphericalCoords. It properly
 // supports angles outside of the standard (0, 2pi) or (0, pi) range by mapping
 // them back into it.
-Eigen::Vector2d ToImageCoords(double phi, double theta, int width, int height);
+template <typename S>
+Vector2<S> ToImageCoords(S phi, S theta, int width, int height);
 
 // Evaluate the spherical harmonic basis function of degree @l and order @m
 // for the given spherical coordinates, @phi and @theta.
 // For low values of @l this will use a hard-coded function, otherwise it
 // will fallback to EvalSHSlow that uses a recurrence relation to support all l.
-double EvalSH(int l, int m, double phi, double theta);
+template <typename T, typename S>
+T EvalSH(int l, int m, S phi, S theta);
 
 // Evaluate the spherical harmonic basis function of degree @l and order @m
 // for the given direction vector, @dir.
 // Check will fail if @dir is not unit.
 // For low values of @l this will use a hard-coded function, otherwise it
 // will fallback to EvalSHSlow that uses a recurrence relation to support all l.
-double EvalSH(int l, int m, const Eigen::Vector3d& dir);
+template <typename T, typename S>
+T EvalSH(int l, int m, const Vector3<S>& dir);
 
 // As EvalSH, but always uses the recurrence relationship. This is exposed
 // primarily for testing purposes to ensure the hard-coded functions equal the
 // recurrence relation version.
-double EvalSHSlow(int l, int m, double phi, double theta);
+template <typename T, typename S>
+T EvalSHSlow(int l, int m, S phi, S theta);
 
 // As EvalSH, but always uses the recurrence relationship. This is exposed
 // primarily for testing purposes to ensure the hard-coded functions equal the
 // recurrence relation version.
 // Check will fail if @dir is not unit.
-double EvalSHSlow(int l, int m, const Eigen::Vector3d& dir);
+template <typename T, typename S>
+T EvalSHSlow(int l, int m, const Vector3<S>& dir);
 
 // Fit the given analytical spherical function to the SH basis functions
 // up to @order. This uses Monte Carlo sampling to estimate the underlying
@@ -136,8 +159,9 @@ double EvalSHSlow(int l, int m, const Eigen::Vector3d& dir);
 // many samples. The recommended default kDefaultSampleCount should be
 // sufficiently high for most functions, but is also likely overly conservative
 // for many applications.
-std::unique_ptr<std::vector<double>> ProjectFunction(
-    int order, const SphericalFunction& func, int sample_count);
+template <typename T, typename S>
+std::unique_ptr<std::vector<T>> ProjectFunction(
+    int order, const SphericalFunction<T,S>& func, int sample_count);
 
 // Fit the given environment map to the SH basis functions up to @order.
 // It is assumed that the environment map is parameterized by theta along
@@ -156,27 +180,29 @@ std::unique_ptr<std::vector<Eigen::Array3f>> ProjectEnvironment(
 // regression is performed.
 // @dirs and @values must have the same size. The directions in @dirs are
 // assumed to be unit.
-std::unique_ptr<std::vector<double>> ProjectSparseSamples(
-    int order, const std::vector<Eigen::Vector3d>& dirs,
-    const std::vector<double>& values);
+template <typename T>
+std::unique_ptr<std::vector<T>> ProjectSparseSamples(
+    int order, const std::vector<Vector3<T>>& dirs,
+    const std::vector<T>& values);
 
 // Weighted version of ProjectSparseSamples.
-std::unique_ptr<std::vector<double>> ProjectWeightedSparseSamples(
-    int order, const std::vector<Eigen::Vector3d>& dirs,
-    const std::vector<double>& values, const std::vector<double>& weights);
+template <typename T>
+std::unique_ptr<std::vector<T>> ProjectWeightedSparseSamples(
+    int order, const std::vector<Vector3<T>>& dirs,
+    const std::vector<T>& values, const std::vector<T>& weights);
 
 // Evaluate the already computed coefficients for the SH basis functions up
 // to @order, at the coordinates @phi and @theta. The length of the @coeffs
 // vector must be equal to GetCoefficientCount(order).
 // There are explicit instantiations for double, float, and Eigen::Array3f.
-template <typename T>
-T EvalSHSum(int order, const std::vector<T>& coeffs, double phi, double theta);
+template <typename T, typename S>
+T EvalSHSum(int order, const std::vector<T>& coeffs, S phi, S theta);
 
 // As EvalSHSum, but inputting a direction vector instead of spherical coords.
 // Check will fail if @dir is not unit.
-template <typename T>
+template <typename T, typename S>
 T EvalSHSum(int order, const std::vector<T>& coeffs, 
-            const Eigen::Vector3d& dir);
+            const Vector3<S>& dir);
 
 // Render into @diffuse_out the diffuse irradiance for every normal vector
 // representable in @diffuse_out, given the luminance stored in @env_map.
@@ -212,13 +238,14 @@ class Rotation {
  public:
   // Create a new Rotation that can applies @rotation to sets of coefficients
   // for the given @order. @order must be at least 0.
-  static std::unique_ptr<Rotation> Create(int order,
-                                          const Eigen::Quaterniond& rotation);
+  static std::unique_ptr<Rotation> Create(
+      int order, const Eigen::Quaterniond& rotation);
 
   // Create a new Rotation that applies the same rotation as @rotation. This
   // can be used to efficiently calculate the matrices for the same 3x3
   // transform when a new order is necessary.
-  static std::unique_ptr<Rotation> Create(int order, const Rotation& rotation);
+  static std::unique_ptr<Rotation> Create(int order,
+                                          const Rotation& rotation);
 
   // Transform the SH basis coefficients in @coeff by this rotation and store
   // them into @result. These may be the same vector. The @result vector will
@@ -231,20 +258,22 @@ class Rotation {
   //
   // There are explicit instantiations for double, float, and Array3f.
   template <typename T>
-  void Apply(const std::vector<T>& coeffs, std::vector<T>* result) const;
+  void Apply(
+      const std::vector<T>& coeffs, std::vector<T>* result) const;
 
   // The order (0-based) that the rotation was constructed with. It can only
   // transform coefficient vectors that were fit using the same order.
-  int order() const;
+  int order() const { return order_; }
 
   // Return the rotation that is effectively applied to the inputs of the
   // original function.
-  Eigen::Quaterniond rotation() const;
+  Eigen::Quaterniond rotation() const { return rotation_; }
 
   // Return the (2l+1)x(2l+1) matrix for transforming the coefficients within
   // band @l by the rotation. @l must be at least 0 and less than or equal to
   // the order this rotation was initially constructed with.
-  const Eigen::MatrixXd& band_rotation(int l) const;
+  const Eigen::MatrixXd& band_rotation(int l) const
+      { return band_rotations_[l]; }
 
  private:
   explicit Rotation(int order, const Eigen::Quaterniond& rotation);

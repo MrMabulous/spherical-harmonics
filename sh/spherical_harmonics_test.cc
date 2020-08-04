@@ -124,16 +124,29 @@ void ComputeExplicitDiffuseIrradiance(const Image& env_map,
 
 }  // namespace
 
-TEST(SphericalHarmonicsTest, ProjectFunction) {
+template <typename T>
+class TypedSphericalHarmonicsTest : public testing::Test { };
+
+typedef ::testing::Types<double, float> Implementations;
+TYPED_TEST_CASE(TypedSphericalHarmonicsTest, Implementations);
+
+TYPED_TEST(TypedSphericalHarmonicsTest, ProjectFunction) {
   // The expected coefficients used to define the analytic spherical function
-  const std::vector<double> coeffs = {-1.028, 0.779, -0.275, 0.601, -0.256,
-                                      1.891, -1.658, -0.370, -0.772};
+  const std::vector<TypeParam> coeffs = {static_cast<TypeParam>(-1.028),
+                                         static_cast<TypeParam>(0.779),
+                                         static_cast<TypeParam>(-0.275),
+                                         static_cast<TypeParam>(0.601),
+                                         static_cast<TypeParam>(-0.256),
+                                         static_cast<TypeParam>(1.891),
+                                         static_cast<TypeParam>(-1.658),
+                                         static_cast<TypeParam>(-0.370),
+                                         static_cast<TypeParam>(-0.772)};
 
   // Project and compare the fitted coefficients, which should be near identical
   // to the initial coefficients
-  SphericalFunction func = [&] (double phi, double theta) {
+  SphericalFunction<TypeParam, double> func = [&] (double phi, double theta) {
     return EvalSHSum(2, coeffs, phi, theta); };
-  std::unique_ptr<std::vector<double>> fitted = ProjectFunction(
+  std::unique_ptr<std::vector<TypeParam>> fitted = ProjectFunction(
       2, func, kTestSampleCount);
   ASSERT_TRUE(fitted != nullptr);
 
@@ -142,21 +155,28 @@ TEST(SphericalHarmonicsTest, ProjectFunction) {
   }
 }
 
-TEST(SphericalHarmonicsTest, ProjectSparseSamples) {
+TYPED_TEST(TypedSphericalHarmonicsTest, ProjectSparseSamples) {
   // These are the expected coefficients that define the sparse samples of
   // the underyling spherical function
-  const std::vector<double> coeffs = {-0.591, -0.713, 0.191, 1.206, -0.587,
-                                      -0.051, 1.543, -0.818, 1.482};
+  const std::vector<TypeParam> coeffs = {static_cast<TypeParam>(-0.591),
+                                         static_cast<TypeParam>(-0.713),
+                                         static_cast<TypeParam>(0.191),
+                                         static_cast<TypeParam>(1.206),
+                                         static_cast<TypeParam>(-0.587),
+                                         static_cast<TypeParam>(-0.051),
+                                         static_cast<TypeParam>(1.543),
+                                         static_cast<TypeParam>(-0.818),
+                                         static_cast<TypeParam>(1.482)};
 
   // Generate sparse samples
-  std::vector<Eigen::Vector3d> sample_dirs;
-  std::vector<double> sample_vals;
+  std::vector<Vector3<TypeParam>> sample_dirs;
+  std::vector<TypeParam> sample_vals;
   for (int t = 0; t < 6; t++) {
-    double theta = t * M_PI / 6.0;
+    TypeParam theta = static_cast<TypeParam>(t * M_PI / 6.0);
     for (int p = 0; p < 8; p++) {
-      double phi = p * 2.0 * M_PI / 8.0;
-      Eigen::Vector3d dir = ToVector(phi, theta);
-      double value = EvalSHSum(2, coeffs, phi, theta);
+      TypeParam phi = static_cast<TypeParam>(p * 2.0 * M_PI / 8.0);
+      Vector3<TypeParam> dir = ToVector(phi, theta);
+      TypeParam value = EvalSHSum(2, coeffs, phi, theta);
       sample_dirs.push_back(dir);
       sample_vals.push_back(value);
     }
@@ -164,7 +184,7 @@ TEST(SphericalHarmonicsTest, ProjectSparseSamples) {
 
   // Compute the sparse fit and given that the samples were drawn from the
   // spherical basis functions this should be a pretty ideal match
-  std::unique_ptr<std::vector<double>> fitted = ProjectSparseSamples(
+  std::unique_ptr<std::vector<TypeParam>> fitted = ProjectSparseSamples(
       2, sample_dirs, sample_vals);
   ASSERT_TRUE(fitted != nullptr);
 
@@ -209,13 +229,21 @@ TEST(SphericalHarmonicsTest, ProjectEnvironment) {
   }
 }
 
-TEST(SphericalHarmonicsTest, EvalSHSum) {
-  const std::vector<double> coeffs = {-1.119, 0.559, 0.433, -0.680, -1.815,
-                                      -0.915, 1.345, 1.572, -0.622};
-  double expected = 0.0;
+TYPED_TEST(TypedSphericalHarmonicsTest, EvalSHSum) {
+  const std::vector<TypeParam> coeffs = {static_cast<TypeParam>(-1.119),
+                                         static_cast<TypeParam>(0.559),
+                                         static_cast<TypeParam>(0.433),
+                                         static_cast<TypeParam>(-0.680),
+                                         static_cast<TypeParam>(-1.815),
+                                         static_cast<TypeParam>(-0.915),
+                                         static_cast<TypeParam>(1.345),
+                                         static_cast<TypeParam>(1.572),
+                                         static_cast<TypeParam>(-0.622)};
+  TypeParam expected = 0.0;
   for (int l = 0; l <= 2; l++) {
     for (int m = -l; m <= l; m++) {
-      expected += coeffs[GetIndex(l, m)] * EvalSH(l, m, M_PI / 4, M_PI / 4);
+      expected += coeffs[GetIndex(l, m)] *
+                  EvalSH<TypeParam, double>(l, m, M_PI / 4, M_PI / 4);
     }
   }
 
@@ -237,7 +265,7 @@ TEST(SphericalHarmonicsTest, EvalSHSumArray3f) {
   Eigen::Array3f expected(0.0, 0.0, 0.0);
   for (int l = 0; l <= 2; l++) {
     for (int m = -l; m <= l; m++) {
-      expected += coeffs[GetIndex(l, m)] * EvalSH(l, m, M_PI / 4, M_PI / 4);
+      expected += coeffs[GetIndex(l, m)] * EvalSH<double, double>(l, m, M_PI / 4, M_PI / 4);
     }
   }
 
@@ -309,7 +337,7 @@ TEST(SphericalHarmonicsTest, ToSphericalCoords) {
   EXPECT_EQ(3 * M_PI / 4, theta);
 }
 
-TEST(SphericalHarmonicsTest, EvalSHSlow) {
+TYPED_TEST(TypedSphericalHarmonicsTest, EvalSHSlow) {
   // Compare the general SH implementation to the closed form functions for
   // several bands, from: http://en.wikipedia.org/wiki/Table_of_spherical_harmonics#Real_spherical_harmonics
   // It's assumed that if the implementation matches these for this subset, the
@@ -323,37 +351,42 @@ TEST(SphericalHarmonicsTest, EvalSHSlow) {
   const Eigen::Vector3d d = ToVector(phi, theta);
 
   // l = 0
-  EXPECT_NEAR(0.5 * sqrt(1 / M_PI), EvalSHSlow(0, 0, phi, theta), kEpsilon);
+  EXPECT_NEAR(static_cast<TypeParam>(0.5 * sqrt(1 / M_PI)),
+              (EvalSHSlow<TypeParam, double>(0, 0, phi, theta)), kEpsilon);
 
   // l = 1, m = -1
-  EXPECT_NEAR(-sqrt(3 / (4 * M_PI)) * d.y(), EvalSHSlow(1, -1, phi, theta),
+  EXPECT_NEAR(static_cast<TypeParam>(-sqrt(3 / (4 * M_PI)) * d.y()),
+              (EvalSHSlow<TypeParam, double>(1, -1, phi, theta)),
               kEpsilon);
   // l = 1, m = 0
-  EXPECT_NEAR(sqrt(3 / (4 * M_PI)) * d.z(), EvalSHSlow(1, 0, phi, theta),
+  EXPECT_NEAR(static_cast<TypeParam>(sqrt(3 / (4 * M_PI)) * d.z()),
+              (EvalSHSlow<TypeParam, double>(1, 0, phi, theta)),
               kEpsilon);
   // l = 1, m = 1
-  EXPECT_NEAR(-sqrt(3 / (4 * M_PI)) * d.x(), EvalSHSlow(1, 1, phi, theta),
+  EXPECT_NEAR(static_cast<TypeParam>(-sqrt(3 / (4 * M_PI)) * d.x()),
+              (EvalSHSlow<TypeParam, double>(1, 1, phi, theta)),
               kEpsilon);
 
   // l = 2, m = -2
-  EXPECT_NEAR(0.5 * sqrt(15 / M_PI) * d.x() * d.y(),
-              EvalSHSlow(2, -2, phi, theta), kEpsilon);
+  EXPECT_NEAR(static_cast<TypeParam>(0.5 * sqrt(15 / M_PI) * d.x() * d.y()),
+              (EvalSHSlow<TypeParam, double>(2, -2, phi, theta)), kEpsilon);
   // l = 2, m = -1
-  EXPECT_NEAR(-0.5 * sqrt(15 / M_PI) * d.y() * d.z(),
-              EvalSHSlow(2, -1, phi, theta), kEpsilon);
+  EXPECT_NEAR(static_cast<TypeParam>(-0.5 * sqrt(15 / M_PI) * d.y() * d.z()),
+              (EvalSHSlow<TypeParam, double>(2, -1, phi, theta)), kEpsilon);
   // l = 2, m = 0
-  EXPECT_NEAR(0.25 * sqrt(5 / M_PI) *
-              (-d.x() * d.x() - d.y() * d.y() + 2 * d.z() * d.z()),
-              EvalSHSlow(2, 0, phi, theta), kEpsilon);
+  EXPECT_NEAR(static_cast<TypeParam>(0.25 * sqrt(5 / M_PI) *
+              (-d.x() * d.x() - d.y() * d.y() + 2 * d.z() * d.z())),
+              (EvalSHSlow<TypeParam, double>(2, 0, phi, theta)), kEpsilon);
   // l = 2, m = 1
-  EXPECT_NEAR(-0.5 * sqrt(15 / M_PI) * d.z() * d.x(),
-              EvalSHSlow(2, 1, phi, theta), kEpsilon);
+  EXPECT_NEAR(static_cast<TypeParam>(-0.5 * sqrt(15 / M_PI) * d.z() * d.x()),
+              (EvalSHSlow<TypeParam, double>(2, 1, phi, theta)), kEpsilon);
   // l = 2, m = 2
-  EXPECT_NEAR(0.25 * sqrt(15 / M_PI) * (d.x() * d.x() - d.y() * d.y()),
-              EvalSHSlow(2, 2, phi, theta), kEpsilon);
+  EXPECT_NEAR(static_cast<TypeParam>(0.25 * sqrt(15 / M_PI) *
+              (d.x() * d.x() - d.y() * d.y())),
+              (EvalSHSlow<TypeParam, double>(2, 2, phi, theta)), kEpsilon);
 }
 
-TEST(SphericalHarmonicsTest, EvalSHHardcoded) {
+TYPED_TEST(TypedSphericalHarmonicsTest, EvalSHHardcoded) {
   // Arbitrary coordinates
   const double phi = 0.4296;
   const double theta = 1.73234;
@@ -361,37 +394,39 @@ TEST(SphericalHarmonicsTest, EvalSHHardcoded) {
 
   for (int l = 0; l <= 4; l++) {
     for (int m = -l; m <= l; m++) {
-      double expected = EvalSHSlow(l, m, phi, theta);
-      EXPECT_NEAR(expected, EvalSH(l, m, phi, theta), kHardcodedError)
+      TypeParam expected = EvalSHSlow<TypeParam, double>(l, m, phi, theta);
+      EXPECT_NEAR(expected, (EvalSH<TypeParam, double>(l, m, phi, theta)),
+                            kHardcodedError)
           << "Spherical coord failure for l, m = (" << l << ", " << m << ")";
-      EXPECT_NEAR(expected, EvalSH(l, m, d), kHardcodedError)
+      EXPECT_NEAR(expected, (EvalSH<TypeParam, double>(l, m, d)),
+                            kHardcodedError)
           << "Vector failure for l, m = (" << l << ", " << m << ")";
     }
   }
 }
 
-TEST(SphericalHarmonicsDeathTest, EvalSHBadInputs) {
+TYPED_TEST(TypedSphericalHarmonicsTest, EvalSHBadInputs) {
   const double phi = M_PI / 4;
   const double theta = M_PI / 3;
   const Eigen::Vector3d d = ToVector(phi, theta);
 
   // l < 0
-  EXPECT_DEATH(EvalSH(-1, 0, phi, theta), "l must be at least 0.");
-  EXPECT_DEATH(EvalSH(-1, 0, d), "l must be at least 0.");
+  EXPECT_DEATH((EvalSH<TypeParam, double>(-1, 0, phi, theta)), "l must be at least 0.");
+  EXPECT_DEATH((EvalSH<TypeParam, double>(-1, 0, d)), "l must be at least 0.");
 
   // m > l
-  EXPECT_DEATH(EvalSH(1, 2, phi, theta), "m must be between -l and l.");
-  EXPECT_DEATH(EvalSH(1, 2, d), "m must be between -l and l.");
+  EXPECT_DEATH((EvalSH<TypeParam, double>(1, 2, phi, theta)), "m must be between -l and l.");
+  EXPECT_DEATH((EvalSH<TypeParam, double>(1, 2, d)), "m must be between -l and l.");
 
   // m < -l
-  EXPECT_DEATH(EvalSH(1, -2, phi, theta), "m must be between -l and l.");
-  EXPECT_DEATH(EvalSH(1, -2, phi, theta), "m must be between -l and l.");
+  EXPECT_DEATH((EvalSH<TypeParam, double>(1, -2, phi, theta)), "m must be between -l and l.");
+  EXPECT_DEATH((EvalSH<TypeParam, double>(1, -2, phi, theta)), "m must be between -l and l.");
 }
 
-TEST(SphericalHarmonicsDeathTest, ProjectFunctionBadInputs) {
-  const std::vector<double> coeffs = {-1.028};
+TYPED_TEST(TypedSphericalHarmonicsTest, ProjectFunctionBadInputs) {
+  const std::vector<TypeParam> coeffs = {static_cast<TypeParam>(-1.028)};
 
-  SphericalFunction func = [&] (double phi, double theta) {
+  SphericalFunction<TypeParam, double> func = [&] (double phi, double theta) {
     return EvalSHSum(0, coeffs, phi, theta); };
 
   // order < 0
@@ -411,20 +446,20 @@ TEST(SphericalHarmonicsDeathTest, ProjectEnvironmentBadInputs) {
   EXPECT_DEATH(ProjectEnvironment(-1, env), "Order must be at least zero.");
 }
 
-TEST(SphericalHarmonicsDeathTest, ProjectSparseSamplesBadInputs) {
+TYPED_TEST(TypedSphericalHarmonicsTest, ProjectSparseSamplesBadInputs) {
   // These are the expected coefficients that define the sparse samples of
   // the underyling spherical function
-  const std::vector<double> coeffs = {-0.591};
+  const std::vector<TypeParam> coeffs = {static_cast<TypeParam>(-0.591)};
 
   // Generate sparse samples
-  std::vector<Eigen::Vector3d> sample_dirs;
-  std::vector<double> sample_vals;
+  std::vector<Vector3<TypeParam>> sample_dirs;
+  std::vector<TypeParam> sample_vals;
   for (int t = 0; t < 6; t++) {
-    double theta = t * M_PI / 6.0;
+    TypeParam theta = static_cast<TypeParam>(t * M_PI / 6.0);
     for (int p = 0; p < 8; p++) {
-      double phi = p * 2.0 * M_PI / 8.0;
-      Eigen::Vector3d dir = ToVector(phi, theta);
-      double value = EvalSHSum<double>(0, coeffs, phi, theta);
+      TypeParam phi = static_cast<TypeParam>(p * 2.0 * M_PI / 8.0);
+      Vector3<TypeParam> dir = ToVector(phi, theta);
+      TypeParam value = EvalSHSum(0, coeffs, phi, theta);
       sample_dirs.push_back(dir);
       sample_vals.push_back(value);
     }
@@ -440,18 +475,29 @@ TEST(SphericalHarmonicsDeathTest, ProjectSparseSamplesBadInputs) {
                "Directions and values must have the same size.");
 }
 
-TEST(SphericalHarmonicsDeathTest, EvalSHSumBadInputs) {
+TYPED_TEST(TypedSphericalHarmonicsTest, EvalSHSumBadInputs) {
   // These are the expected coefficients that define the sparse samples of
   // the underyling spherical function
-  const std::vector<double> coeffs = {-0.591, -0.713, 0.191, 1.206, -0.587,
-                                      -0.051, 1.543, -0.818, 1.482};
+  const std::vector<TypeParam> coeffs = {static_cast<TypeParam>(-0.591),
+                                         static_cast<TypeParam>(-0.713),
+                                         static_cast<TypeParam>(0.191),
+                                         static_cast<TypeParam>(1.206),
+                                         static_cast<TypeParam>(-0.587),
+                                         static_cast<TypeParam>(-0.051),
+                                         static_cast<TypeParam>(1.543),
+                                         static_cast<TypeParam>(-0.818),
+                                         static_cast<TypeParam>(1.482)};
   EXPECT_DEATH(EvalSHSum(3, coeffs, M_PI / 4, M_PI / 4),
                "Incorrect number of coefficients provided.");
 }
 
-TEST(SphericalHarmonicsDeathTest, ToSphericalCoordsBadInputs) {
-  double phi, theta;
-  EXPECT_DEATH(ToSphericalCoords(Eigen::Vector3d(2.0, 0.0, 0.4), &phi, &theta),
+TYPED_TEST(TypedSphericalHarmonicsTest, ToSphericalCoordsBadInputs) {
+  TypeParam phi, theta;
+  EXPECT_DEATH(ToSphericalCoords(Vector3<TypeParam>(
+                                     static_cast<TypeParam>(2.0),
+                                     static_cast<TypeParam>(0.0),
+                                     static_cast<TypeParam>(0.4)),
+                                 &phi, &theta),
                "");
 }
 
@@ -632,7 +678,7 @@ TEST(SphericalHarmonicsRotationTest, CreateFromSHRotation) {
 }
 
 TEST(SphericalHarmonicsRotationTest, RotateSymmetricFunction) {
-  SphericalFunction function = [] (double phi, double theta) {
+  SphericalFunction<double, double> function = [] (double phi, double theta) {
     Eigen::Vector3d d = ToVector(phi, theta);
     return Eigen::Vector3d::UnitZ().dot(d);
   };
@@ -666,7 +712,7 @@ TEST(SphericalHarmonicsRotationTest, RotateSymmetricFunction) {
     Eigen::Quaterniond r_inv = rotation.inverse();
     std::unique_ptr<Rotation> r_sh(Rotation::Create(3, rotation));
 
-    SphericalFunction rotated_function = [&] (double p, double t) {
+    SphericalFunction<double, double> rotated_function = [&] (double p, double t) {
       const Eigen::Vector3d n(0, 0, 1);
       Eigen::Vector3d d = r_inv * ToVector(p, t);
       return n.dot(d);
@@ -697,7 +743,7 @@ TEST(SphericalHarmonicsRotationTest, RotateComplexFunction) {
     Eigen::Quaterniond r_inv = rotation.inverse();
     std::unique_ptr<Rotation> r_sh(Rotation::Create(4, rotation));
 
-    SphericalFunction rotated_function = [&] (double p, double t) {
+    SphericalFunction<double, double> rotated_function = [&] (double p, double t) {
       ToSphericalCoords(r_inv * ToVector(p, t), &p, &t);
       return EvalSHSum(4, coeff, p, t);
     };
@@ -719,11 +765,11 @@ TEST(SphericalHarmonicsRotationTest, RotateInPlace) {
   const Eigen::Quaterniond r_inv = r.inverse();
   std::unique_ptr<Rotation> r_sh(Rotation::Create(3, r));
 
-  SphericalFunction function = [] (double phi, double theta) {
+  SphericalFunction<double, double> function = [] (double phi, double theta) {
     Eigen::Vector3d d = ToVector(phi, theta);
     return Clamp(Eigen::Vector3d::UnitZ().dot(d), 0.0, 1.0);
   };
-  SphericalFunction rotated_function = [&] (double phi, double theta) {
+  SphericalFunction<double, double> rotated_function = [&] (double phi, double theta) {
     Eigen::Vector3d d = r_inv * ToVector(phi, theta);
     return Clamp(Eigen::Vector3d::UnitZ().dot(d), 0.0, 1.0);
   };
@@ -852,26 +898,26 @@ TEST(SphericalHarmonicsTest, ImageCoordsToSphericalCoordsTest) {
   double pixel_phi = M_PI / kImageWidth;
   double pixel_theta = 0.5 * M_PI / kImageHeight;
 
-  EXPECT_NEAR(pixel_phi,  ImageXToPhi(0, kImageWidth), kEpsilon);
-  EXPECT_NEAR(pixel_theta, ImageYToTheta(0, kImageHeight), kEpsilon);
+  EXPECT_NEAR(pixel_phi,  ImageXToPhi<double>(0, kImageWidth), kEpsilon);
+  EXPECT_NEAR(pixel_theta, ImageYToTheta<double>(0, kImageHeight), kEpsilon);
 
-  EXPECT_NEAR(M_PI + pixel_phi, ImageXToPhi(kImageWidth / 2, kImageWidth),
+  EXPECT_NEAR(M_PI + pixel_phi, ImageXToPhi<double>(kImageWidth / 2, kImageWidth),
               kEpsilon);
   EXPECT_NEAR(M_PI / 2 + pixel_theta,
-              ImageYToTheta(kImageHeight / 2, kImageHeight), kEpsilon);
+              ImageYToTheta<double>(kImageHeight / 2, kImageHeight), kEpsilon);
 
-  EXPECT_NEAR(2 * M_PI - pixel_phi, ImageXToPhi(kImageWidth - 1, kImageWidth),
+  EXPECT_NEAR(2 * M_PI - pixel_phi, ImageXToPhi<double>(kImageWidth - 1, kImageWidth),
               kEpsilon);
   EXPECT_NEAR(M_PI - pixel_theta,
-              ImageYToTheta(kImageHeight - 1, kImageHeight), kEpsilon);
+              ImageYToTheta<double>(kImageHeight - 1, kImageHeight), kEpsilon);
 
   // Out of bounds pixels on either side of the image range
-  EXPECT_NEAR(-pixel_phi, ImageXToPhi(-1, kImageWidth), kEpsilon);
-  EXPECT_NEAR(-pixel_theta, ImageYToTheta(-1, kImageHeight), kEpsilon);
+  EXPECT_NEAR(-pixel_phi, ImageXToPhi<double>(-1, kImageWidth), kEpsilon);
+  EXPECT_NEAR(-pixel_theta, ImageYToTheta<double>(-1, kImageHeight), kEpsilon);
 
-  EXPECT_NEAR(2 * M_PI + pixel_phi, ImageXToPhi(kImageWidth, kImageWidth),
+  EXPECT_NEAR(2 * M_PI + pixel_phi, ImageXToPhi<double>(kImageWidth, kImageWidth),
               kEpsilon);
-  EXPECT_NEAR(M_PI + pixel_theta, ImageYToTheta(kImageHeight, kImageHeight),
+  EXPECT_NEAR(M_PI + pixel_theta, ImageYToTheta<double>(kImageHeight, kImageHeight),
               kEpsilon);
 }
 
@@ -924,7 +970,7 @@ TEST(SphericalHarmonicsTest, RenderDiffuseIrradianceTest) {
   // Set light = 1 for simplicity.
 
   std::unique_ptr<std::vector<double>> env =
-      ProjectFunction(2, [] (double phi, double theta) {
+      ProjectFunction<double, double>(2, [] (double phi, double theta) {
         return theta > M_PI / 2 ? 0.0 : 1.0;
       }, 2500);
   // Convert it to RGB
