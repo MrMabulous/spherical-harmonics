@@ -38,8 +38,16 @@ const int kIrradianceCoeffCount = GetCoefficientCount(kIrradianceOrder);
 //     return Clamp(Eigen::Vector3d::UnitZ().dot(ToVector(phi, theta)), 
 //                  0.0, 1.0);
 //   }, 10000000);
-const std::vector<double> cosine_lobe = { 0.886227, 0.0, 1.02333, 0.0, 0.0, 0.0,
-                                          0.495416, 0.0, 0.0 };
+template <typename T>
+const std::vector<T> cosine_lobe = { static_cast<T>(0.886227),
+                                     static_cast<T>(0.0),
+                                     static_cast<T>(1.02333),
+                                     static_cast<T>(0.0),
+                                     static_cast<T>(0.0),
+                                     static_cast<T>(0.0),
+                                     static_cast<T>(0.495416),
+                                     static_cast<T>(0.0),
+                                     static_cast<T>(0.0) };
 
 // A zero template is required for EvalSHSum to handle its template
 // instantiations and a type's default constructor does not necessarily
@@ -70,7 +78,8 @@ using VectorX = Eigen::Matrix<T, Eigen::Dynamic, 1>;
 
 // Clamp the first argument to be greater than or equal to the second
 // and less than or equal to the third.
-double Clamp(double val, double min, double max) {
+template <typename T>
+T Clamp(T val, T min, T max) {
   if (val < min) {
     val = min;
   }
@@ -81,17 +90,19 @@ double Clamp(double val, double min, double max) {
 }
 
 // Return true if the first value is within epsilon of the second value.
-bool NearByMargin(double actual, double expected) {
-  double diff = actual - expected;
+template <typename T>
+bool NearByMargin(T actual, T expected) {
+  T diff = actual - expected;
   if (diff < 0.0) {
     diff = -diff;
   }
   // 5 bits of error in mantissa (source of '32 *')
-  return diff < 32 * std::numeric_limits<double>::epsilon();
+  return diff < 32 * std::numeric_limits<T>::epsilon();
 }
 
 // Return floating mod x % m.
-double FastFMod(double x, double m) {
+template <typename T>
+T FastFMod(T x, T m) {
   return x - (m * floor(x / m));
 }
 
@@ -100,136 +111,172 @@ double FastFMod(double x, double m) {
 //
 // As polynomials they are evaluated more efficiently in cartesian coordinates,
 // assuming that @d is unit. This is not verified for efficiency.
-double HardcodedSH00(const Eigen::Vector3d& d) {
+template <typename T>
+T HardcodedSH00(const Vector3<T>& d) {
   // 0.5 * sqrt(1/pi)
-  return 0.282095;
+  return static_cast<T>(0.282095);
 }
 
-double HardcodedSH1n1(const Eigen::Vector3d& d) {
+template <typename T>
+T HardcodedSH1n1(const Vector3<T>& d) {
   // -sqrt(3/(4pi)) * y
-  return -0.488603 * d.y();
+  return static_cast<T>(-0.488603) * d.y();
 }
 
-double HardcodedSH10(const Eigen::Vector3d& d) {
+template <typename T>
+T HardcodedSH10(const Vector3<T>& d) {
   // sqrt(3/(4pi)) * z
-  return 0.488603 * d.z();
+  return static_cast<T>(0.488603) * d.z();
 }
 
-double HardcodedSH1p1(const Eigen::Vector3d& d) {
+template <typename T>
+T HardcodedSH1p1(const Vector3<T>& d) {
   // -sqrt(3/(4pi)) * x
-  return -0.488603 * d.x();
+  return static_cast<T>(-0.488603) * d.x();
 }
 
-double HardcodedSH2n2(const Eigen::Vector3d& d) {
+template <typename T>
+T HardcodedSH2n2(const Vector3<T>& d) {
   // 0.5 * sqrt(15/pi) * x * y
-  return 1.092548 * d.x() * d.y();
+  return static_cast<T>(1.092548) * d.x() * d.y();
 }
 
-double HardcodedSH2n1(const Eigen::Vector3d& d) {
+template <typename T>
+T HardcodedSH2n1(const Vector3<T>& d) {
   // -0.5 * sqrt(15/pi) * y * z
-  return -1.092548 * d.y() * d.z();
+  return static_cast<T>(-1.092548) * d.y() * d.z();
 }
 
-double HardcodedSH20(const Eigen::Vector3d& d) {
+template <typename T>
+T HardcodedSH20(const Vector3<T>& d) {
   // 0.25 * sqrt(5/pi) * (-x^2-y^2+2z^2)
-  return 0.315392 * (-d.x() * d.x() - d.y() * d.y() + 2.0 * d.z() * d.z());
+  return static_cast<T>(0.315392) * 
+      (-d.x() * d.x() - d.y() * d.y() + 2.0 * d.z() * d.z());
 }
 
-double HardcodedSH2p1(const Eigen::Vector3d& d) {
+template <typename T>
+T HardcodedSH2p1(const Vector3<T>& d) {
   // -0.5 * sqrt(15/pi) * x * z
-  return -1.092548 * d.x() * d.z();
+  return static_cast<T>(-1.092548) * d.x() * d.z();
 }
 
-double HardcodedSH2p2(const Eigen::Vector3d& d) {
+template <typename T>
+T HardcodedSH2p2(const Vector3<T>& d) {
   // 0.25 * sqrt(15/pi) * (x^2 - y^2)
-  return 0.546274 * (d.x() * d.x() - d.y() * d.y());
+  return static_cast<T>(0.546274) * (d.x() * d.x() - d.y() * d.y());
 }
 
-double HardcodedSH3n3(const Eigen::Vector3d& d) {
+template <typename T>
+T HardcodedSH3n3(const Vector3<T>& d) {
   // -0.25 * sqrt(35/(2pi)) * y * (3x^2 - y^2)
-  return -0.590044 * d.y() * (3.0 * d.x() * d.x() - d.y() * d.y());
+  return static_cast<T>(-0.590044) *
+      d.y() * (3.0 * d.x() * d.x() - d.y() * d.y());
 }
 
-double HardcodedSH3n2(const Eigen::Vector3d& d) {
+template <typename T>
+T HardcodedSH3n2(const Vector3<T>& d) {
   // 0.5 * sqrt(105/pi) * x * y * z
-  return 2.890611 * d.x() * d.y() * d.z();
+  return static_cast<T>(2.890611) * d.x() * d.y() * d.z();
 }
 
-double HardcodedSH3n1(const Eigen::Vector3d& d) {
+template <typename T>
+T HardcodedSH3n1(const Vector3<T>& d) {
   // -0.25 * sqrt(21/(2pi)) * y * (4z^2-x^2-y^2)
-  return -0.457046 * d.y() * (4.0 * d.z() * d.z() - d.x() * d.x()
-                             - d.y() * d.y());
+  return static_cast<T>(-0.457046) *
+      d.y() * (4.0 * d.z() * d.z() - d.x() * d.x() - d.y() * d.y());
 }
 
-double HardcodedSH30(const Eigen::Vector3d& d) {
+template <typename T>
+T HardcodedSH30(const Vector3<T>& d) {
   // 0.25 * sqrt(7/pi) * z * (2z^2 - 3x^2 - 3y^2)
-  return 0.373176 * d.z() * (2.0 * d.z() * d.z() - 3.0 * d.x() * d.x()
-                             - 3.0 * d.y() * d.y());
+  return static_cast<T>(0.373176) *
+      d.z() * (2.0 * d.z() * d.z() - 3.0 * d.x() * d.x() - 3.0 * d.y() * d.y());
 }
 
-double HardcodedSH3p1(const Eigen::Vector3d& d) {
+template <typename T>
+T HardcodedSH3p1(const Vector3<T>& d) {
   // -0.25 * sqrt(21/(2pi)) * x * (4z^2-x^2-y^2)
-  return -0.457046 * d.x() * (4.0 * d.z() * d.z() - d.x() * d.x()
-                             - d.y() * d.y());
+  return static_cast<T>(-0.457046) *
+      d.x() * (4.0 * d.z() * d.z() - d.x() * d.x() - d.y() * d.y());
 }
 
-double HardcodedSH3p2(const Eigen::Vector3d& d) {
+template <typename T>
+T HardcodedSH3p2(const Vector3<T>& d) {
   // 0.25 * sqrt(105/pi) * z * (x^2 - y^2)
-  return 1.445306 * d.z() * (d.x() * d.x() - d.y() * d.y());
+  return static_cast<T>(1.445306) * d.z() * (d.x() * d.x() - d.y() * d.y());
 }
 
-double HardcodedSH3p3(const Eigen::Vector3d& d) {
+template <typename T>
+T HardcodedSH3p3(const Vector3<T>& d) {
   // -0.25 * sqrt(35/(2pi)) * x * (x^2-3y^2)
-  return -0.590044 * d.x() * (d.x() * d.x() - 3.0 * d.y() * d.y());
+  return static_cast<T>(-0.590044) *
+      d.x() * (d.x() * d.x() - 3.0 * d.y() * d.y());
 }
 
-double HardcodedSH4n4(const Eigen::Vector3d& d) {
+template <typename T>
+T HardcodedSH4n4(const Vector3<T>& d) {
   // 0.75 * sqrt(35/pi) * x * y * (x^2-y^2)
-  return 2.503343 * d.x() * d.y() * (d.x() * d.x() - d.y() * d.y());
+  return static_cast<T>(2.503343) *
+      d.x() * d.y() * (d.x() * d.x() - d.y() * d.y());
 }
 
-double HardcodedSH4n3(const Eigen::Vector3d& d) {
+template <typename T>
+T HardcodedSH4n3(const Vector3<T>& d) {
   // -0.75 * sqrt(35/(2pi)) * y * z * (3x^2-y^2)
-  return -1.770131 * d.y() * d.z() * (3.0 * d.x() * d.x() - d.y() * d.y());
+  return static_cast<T>(-1.770131) *
+      d.y() * d.z() * (3.0 * d.x() * d.x() - d.y() * d.y());
 }
 
-double HardcodedSH4n2(const Eigen::Vector3d& d) {
+template <typename T>
+T HardcodedSH4n2(const Vector3<T>& d) {
   // 0.75 * sqrt(5/pi) * x * y * (7z^2-1)
-  return 0.946175 * d.x() * d.y() * (7.0 * d.z() * d.z() - 1.0);
+  return static_cast<T>(0.946175) *
+      d.x() * d.y() * (7.0 * d.z() * d.z() - 1.0);
 }
 
-double HardcodedSH4n1(const Eigen::Vector3d& d) {
+template <typename T>
+T HardcodedSH4n1(const Vector3<T>& d) {
   // -0.75 * sqrt(5/(2pi)) * y * z * (7z^2-3)
-  return -0.669047 * d.y() * d.z() * (7.0 * d.z() * d.z() - 3.0);
+  return static_cast<T>(-0.669047) *
+      d.y() * d.z() * (7.0 * d.z() * d.z() - 3.0);
 }
 
-double HardcodedSH40(const Eigen::Vector3d& d) {
+template <typename T>
+T HardcodedSH40(const Vector3<T>& d) {
   // 3/16 * sqrt(1/pi) * (35z^4-30z^2+3)
-  double z2 = d.z() * d.z();
-  return 0.105786 * (35.0 * z2 * z2 - 30.0 * z2 + 3.0);
+  T z2 = d.z() * d.z();
+  return static_cast<T>(0.105786) *
+      (35.0 * z2 * z2 - 30.0 * z2 + 3.0);
 }
 
-double HardcodedSH4p1(const Eigen::Vector3d& d) {
+template <typename T>
+T HardcodedSH4p1(const Vector3<T>& d) {
   // -0.75 * sqrt(5/(2pi)) * x * z * (7z^2-3)
-  return -0.669047 * d.x() * d.z() * (7.0 * d.z() * d.z() - 3.0);
+  return static_cast<T>(-0.669047) *
+      d.x() * d.z() * (7.0 * d.z() * d.z() - 3.0);
 }
 
-double HardcodedSH4p2(const Eigen::Vector3d& d) {
+template <typename T>
+T HardcodedSH4p2(const Vector3<T>& d) {
   // 3/8 * sqrt(5/pi) * (x^2 - y^2) * (7z^2 - 1)
-  return 0.473087 * (d.x() * d.x() - d.y() * d.y())
+  return static_cast<T>(0.473087) * (d.x() * d.x() - d.y() * d.y())
       * (7.0 * d.z() * d.z() - 1.0);
 }
 
-double HardcodedSH4p3(const Eigen::Vector3d& d) {
+template <typename T>
+T HardcodedSH4p3(const Vector3<T>& d) {
   // -0.75 * sqrt(35/(2pi)) * x * z * (x^2 - 3y^2)
-  return -1.770131 * d.x() * d.z() * (d.x() * d.x() - 3.0 * d.y() * d.y());
+  return static_cast<T>(-1.770131) *
+      d.x() * d.z() * (d.x() * d.x() - 3.0 * d.y() * d.y());
 }
 
-double HardcodedSH4p4(const Eigen::Vector3d& d) {
+template <typename T>
+T HardcodedSH4p4(const Vector3<T>& d) {
   // 3/16*sqrt(35/pi) * (x^2 * (x^2 - 3y^2) - y^2 * (3x^2 - y^2))
-  double x2 = d.x() * d.x();
-  double y2 = d.y() * d.y();
-  return 0.625836 * (x2 * (x2 - 3.0 * y2) - y2 * (3.0 * x2 - y2));
+  T x2 = d.x() * d.x();
+  T y2 = d.y() * d.y();
+  return static_cast<T>(0.625836) *
+      (x2 * (x2 - 3.0 * y2) - y2 * (3.0 * x2 - y2));
 }
 
 // Compute the factorial for an integer @x. It is assumed x is at least 0.
@@ -327,7 +374,8 @@ double EvalLegendrePolynomial(int l, int m, double x) {
 //      functions correspond with the notation used in [1, 4].
 
 // See http://en.wikipedia.org/wiki/Kronecker_delta
-double KroneckerDelta(int i, int j) {
+template <typename T>
+T KroneckerDelta(int i, int j) {
   if (i == j) {
     return 1.0;
   } else {
@@ -341,7 +389,8 @@ double KroneckerDelta(int i, int j) {
 //
 // This is a convenience function to allow us to access an Eigen::MatrixXd
 // in the same manner, assuming r is a (2l+1)x(2l+1) matrix.
-double GetCenteredElement(const Eigen::MatrixXd& r, int i, int j) {
+template <typename T>
+T GetCenteredElement(const MatrixX<T>& r, int i, int j) {
   // The shift to go from [-l, l] to [0, 2l] is (rows - 1) / 2 = l,
   // (since the matrix is assumed to be square, rows == cols).
   int offset = (r.rows() - 1) / 2;
@@ -351,7 +400,8 @@ double GetCenteredElement(const Eigen::MatrixXd& r, int i, int j) {
 // P is a helper function defined in [4] that is used by the functions U, V, W.
 // This should not be called on its own, as U, V, and W (and their coefficients)
 // select the appropriate matrix elements to access (arguments @a and @b).
-double P(int i, int a, int b, int l, const std::vector<Eigen::MatrixXd>& r) {
+template <typename T>
+T P(int i, int a, int b, int l, const std::vector<MatrixX<T>>& r) {
   if (b == l) {
     return GetCenteredElement(r[1], i, 1) *
         GetCenteredElement(r[l - 1], a, l - 1) -
@@ -372,31 +422,33 @@ double P(int i, int a, int b, int l, const std::vector<Eigen::MatrixXd>& r) {
 // When the coefficient is 0, these would attempt to access matrix elements that
 // are out of bounds. The list of rotations, @r, must have the @l - 1
 // previously completed band rotations. These functions are valid for l >= 2.
-
-double U(int m, int n, int l, const std::vector<Eigen::MatrixXd>& r) {
+template <typename T>
+T U(int m, int n, int l, const std::vector<MatrixX<T>>& r) {
   // Although [1, 4] split U into three cases for m == 0, m < 0, m > 0
   // the actual values are the same for all three cases
   return P(0, m, n, l, r);
 }
 
-double V(int m, int n, int l, const std::vector<Eigen::MatrixXd>& r) {
+template <typename T>
+T V(int m, int n, int l, const std::vector<MatrixX<T>>& r) {
   if (m == 0) {
     return P(1, 1, n, l, r) + P(-1, -1, n, l, r);
   } else if (m > 0) {
-    return P(1, m - 1, n, l, r) * sqrt(1 + KroneckerDelta(m, 1)) -
-        P(-1, -m + 1, n, l, r) * (1 - KroneckerDelta(m, 1));
+    return P(1, m - 1, n, l, r) * sqrt(1 + KroneckerDelta<T>(m, 1)) -
+        P(-1, -m + 1, n, l, r) * (1 - KroneckerDelta<T>(m, 1));
   } else {
     // Note there is apparent errata in [1,4,4b] dealing with this particular
     // case. [4b] writes it should be P*(1-d)+P*(1-d)^0.5
     // [1] writes it as P*(1+d)+P*(1-d)^0.5, but going through the math by hand,
     // you must have it as P*(1-d)+P*(1+d)^0.5 to form a 2^.5 term, which
     // parallels the case where m > 0.
-    return P(1, m + 1, n, l, r) * (1 - KroneckerDelta(m, -1)) +
-        P(-1, -m - 1, n, l, r) * sqrt(1 + KroneckerDelta(m, -1));
+    return P(1, m + 1, n, l, r) * (1 - KroneckerDelta<T>(m, -1)) +
+        P(-1, -m - 1, n, l, r) * sqrt(1 + KroneckerDelta<T>(m, -1));
   }
 }
 
-double W(int m, int n, int l, const std::vector<Eigen::MatrixXd>& r) {
+template <typename T>
+T W(int m, int n, int l, const std::vector<MatrixX<T>>& r) {
   if (m == 0) {
     // whenever this happens, w is also 0 so W can be anything
     return 0.0;
@@ -409,9 +461,10 @@ double W(int m, int n, int l, const std::vector<Eigen::MatrixXd>& r) {
 
 // Calculate the coefficients applied to the U, V, and W functions. Because
 // their equations share many common terms they are computed simultaneously.
-void ComputeUVWCoeff(int m, int n, int l, double* u, double* v, double* w) {
-  double d = KroneckerDelta(m, 0);
-  double denom = (abs(n) == l ? 2.0 * l * (2.0 * l - 1) : (l + n) * (l - n));
+template <typename T>
+void ComputeUVWCoeff(int m, int n, int l, T* u, T* v, T* w) {
+  T d = KroneckerDelta<T>(m, 0);
+  T denom = (abs(n) == l ? 2.0 * l * (2.0 * l - 1) : (l + n) * (l - n));
 
   *u = sqrt((l + m) * (l - m) / denom);
   *v = 0.5 * sqrt((1 + d) * (l + abs(m) - 1.0) * (l + abs(m)) / denom)
@@ -426,13 +479,14 @@ void ComputeUVWCoeff(int m, int n, int l, double* u, double* v, double* w) {
 //
 // This implementation comes from p. 5 (6346), Table 1 and 2 in [4] taking
 // into account the corrections from [4b].
-void ComputeBandRotation(int l, std::vector<Eigen::MatrixXd>* rotations) {
+template <typename T>
+void ComputeBandRotation(int l, std::vector<MatrixX<T>>* rotations) {
   // The band's rotation matrix has rows and columns equal to the number of
   // coefficients within that band (-l <= m <= l implies 2l + 1 coefficients).
-  Eigen::MatrixXd rotation(2 * l + 1, 2 * l + 1);
+  MatrixX<T> rotation(2 * l + 1, 2 * l + 1);
   for (int m = -l; m <= l; m++) {
     for (int n = -l; n <= l; n++) {
-      double u, v, w;
+      T u, v, w;
       ComputeUVWCoeff(m, n, l, &u, &v, &w);
 
       // The functions U, V, W are only safe to call if the coefficients
@@ -452,60 +506,69 @@ void ComputeBandRotation(int l, std::vector<Eigen::MatrixXd>* rotations) {
 }
 
 }  // namespace
-
-Eigen::Vector3d ToVector(double phi, double theta) {
-  double r = sin(theta);
-  return Eigen::Vector3d(r * cos(phi), r * sin(phi), cos(theta));
+template <typename S>
+Vector3<S> ToVector(S phi, S theta) {
+  S r = sin(theta);
+  return Vector3<S>(r * cos(phi), r * sin(phi), cos(theta));
 }
 
-void ToSphericalCoords(const Eigen::Vector3d& dir, double* phi, double* theta) {
-  CHECK(NearByMargin(dir.squaredNorm(), 1.0), "dir is not unit");
+template <typename S>
+void ToSphericalCoords(const Vector3<S>& dir, S* phi, S* theta) {
+  CHECK(NearByMargin(dir.squaredNorm(), static_cast<S>(1.0)),
+        "dir is not unit");
   // Explicitly clamp the z coordinate so that numeric errors don't cause it
   // to fall just outside of acos' domain.
-  *theta = acos(Clamp(dir.z(), -1.0, 1.0));
+  *theta = acos(Clamp(dir.z(), static_cast<S>(-1.0), static_cast<S>(1.0)));
   // We don't need to divide dir.y() or dir.x() by sin(theta) since they are
   // both scaled by it and atan2 will handle it appropriately.
   *phi = atan2(dir.y(), dir.x());
 }
 
-double ImageXToPhi(int x, int width) {
+template <typename S>
+S ImageXToPhi(int x, int width) {
   // The directions are measured from the center of the pixel, so add 0.5
   // to convert from integer pixel indices to float pixel coordinates.
-  return 2.0 * M_PI * (x + 0.5) / width;
+  return static_cast<S>(2.0 * M_PI) * (x + static_cast<S>(0.5)) / width;
 }
 
-double ImageYToTheta(int y, int height) {
-  return M_PI * (y + 0.5) / height;
+template <typename S>
+S ImageYToTheta(int y, int height) {
+  return static_cast<S>(M_PI) * (y + static_cast<S>(0.5)) / height;
 }
 
-Eigen::Vector2d ToImageCoords(double phi, double theta, int width, int height) {
+template <typename S>
+Vector2<S> ToImageCoords(S phi, S theta, int width, int height) {
   // Allow theta to repeat and map to 0 to pi. However, to account for cases
   // where y goes beyond the normal 0 to pi range, phi may need to be adjusted.
-  theta = Clamp(FastFMod(theta, 2.0 * M_PI), 0.0, 2.0 * M_PI);
-  if (theta > M_PI) {
+  theta = Clamp(FastFMod(theta, static_cast<S>(2.0 * M_PI)),
+                         static_cast<S>(0.0), static_cast<S>(2.0 * M_PI));
+  if (theta > static_cast<S>(M_PI)) {
     // theta is out of bounds. Effectively, theta has rotated past the pole
     // so after adjusting theta to be in range, rotating phi by pi forms an
     // equivalent direction.
-    theta = 2.0 * M_PI - theta;  // now theta is between 0 and pi
-    phi += M_PI;
+    theta = static_cast<S>(2.0 * M_PI) - theta;  // now theta is between 0 and pi
+    phi += static_cast<S>(M_PI);
   }
   // Allow phi to repeat and map to the normal 0 to 2pi range.
   // Clamp and map after adjusting theta in case theta was forced to update phi.
-  phi = Clamp(FastFMod(phi, 2.0 * M_PI), 0.0, 2.0 * M_PI);
+  phi = Clamp(FastFMod(phi, static_cast<S>(2.0 * M_PI)),
+                       static_cast<S>(0.0), static_cast<S>(2.0 * M_PI));
 
   // Now phi is in [0, 2pi] and theta is in [0, pi] so it's simple to inverse
   // the linear equations in ImageCoordsToSphericalCoords, although there's no
   // -0.5 because we're returning floating point coordinates and so don't need
   // to center the pixel.
-  return Eigen::Vector2d(width * phi / (2.0 * M_PI), height * theta / M_PI);
+  return Vector2<S>(width * phi / static_cast<S>(2.0 * M_PI),
+                    height * theta / static_cast<S>(M_PI));
 }
 
-double EvalSHSlow(int l, int m, double phi, double theta) {
+template <typename T, typename S>
+T EvalSHSlow(int l, int m, S phi, S theta) {
   CHECK(l >= 0, "l must be at least 0.");
   CHECK(-l <= m && m <= l, "m must be between -l and l.");
 
   double kml = sqrt((2.0 * l + 1) * Factorial(l - abs(m)) /
-                    (4.0 * M_PI * Factorial(l + abs(m))));
+              (4.0 * M_PI * Factorial(l + abs(m))));
   if (m > 0) {
     return sqrt(2.0) * kml * cos(m * phi) *
         EvalLegendrePolynomial(l, m, cos(theta));
@@ -517,136 +580,141 @@ double EvalSHSlow(int l, int m, double phi, double theta) {
   }
 }
 
-double EvalSHSlow(int l, int m, const Eigen::Vector3d& dir) {
-  double phi, theta;
+template <typename T, typename S>
+T EvalSHSlow(int l, int m, const Vector3<S>& dir) {
+  S phi, theta;
   ToSphericalCoords(dir, &phi, &theta);
-  return EvalSH(l, m, phi, theta);
+  return EvalSH<T,S>(l, m, phi, theta);
 }
 
-double EvalSH(int l, int m, double phi, double theta) {
+template <typename T, typename S>
+T EvalSH(int l, int m, S phi, S theta) {
   // If using the hardcoded functions, switch to cartesian
   if (l <= kHardCodedOrderLimit) {
-    return EvalSH(l, m, ToVector(phi, theta));
+    return EvalSH<T,S>(l, m, ToVector(phi, theta));
   } else {
     // Stay in spherical coordinates since that's what the recurrence
     // version is implemented in
-    return EvalSHSlow(l, m, phi, theta);
+    return EvalSHSlow<T,S>(l, m, phi, theta);
   }
 }
 
-double EvalSH(int l, int m, const Eigen::Vector3d& dir) {
+template <typename T, typename S>
+T EvalSH(int l, int m, const Vector3<S>& dir) {
   if (l <= kHardCodedOrderLimit) {
     // Validate l and m here (don't do it generally since EvalSHSlow also
     // checks it if we delegate to that function).
     CHECK(l >= 0, "l must be at least 0.");
     CHECK(-l <= m && m <= l, "m must be between -l and l.");
-    CHECK(NearByMargin(dir.squaredNorm(), 1.0), "dir is not unit.");
+    CHECK(NearByMargin(dir.squaredNorm(), static_cast<S>(1.0)),
+          "dir is not unit.");
 
     switch (l) {
       case 0:
-        return HardcodedSH00(dir);
+        return static_cast<T>(HardcodedSH00(dir));
       case 1:
         switch (m) {
           case -1:
-            return HardcodedSH1n1(dir);
+            return static_cast<T>(HardcodedSH1n1(dir));
           case 0:
-            return HardcodedSH10(dir);
+            return static_cast<T>(HardcodedSH10(dir));
           case 1:
-            return HardcodedSH1p1(dir);
+            return static_cast<T>(HardcodedSH1p1(dir));
         }
       case 2:
         switch (m) {
           case -2:
-            return HardcodedSH2n2(dir);
+            return static_cast<T>(HardcodedSH2n2(dir));
           case -1:
-            return HardcodedSH2n1(dir);
+            return static_cast<T>(HardcodedSH2n1(dir));
           case 0:
-            return HardcodedSH20(dir);
+            return static_cast<T>(HardcodedSH20(dir));
           case 1:
-            return HardcodedSH2p1(dir);
+            return static_cast<T>(HardcodedSH2p1(dir));
           case 2:
-            return HardcodedSH2p2(dir);
+            return static_cast<T>(HardcodedSH2p2(dir));
         }
       case 3:
         switch (m) {
           case -3:
-            return HardcodedSH3n3(dir);
+            return static_cast<T>(HardcodedSH3n3(dir));
           case -2:
-            return HardcodedSH3n2(dir);
+            return static_cast<T>(HardcodedSH3n2(dir));
           case -1:
-            return HardcodedSH3n1(dir);
+            return static_cast<T>(HardcodedSH3n1(dir));
           case 0:
-            return HardcodedSH30(dir);
+            return static_cast<T>(HardcodedSH30(dir));
           case 1:
-            return HardcodedSH3p1(dir);
+            return static_cast<T>(HardcodedSH3p1(dir));
           case 2:
-            return HardcodedSH3p2(dir);
+            return static_cast<T>(HardcodedSH3p2(dir));
           case 3:
-            return HardcodedSH3p3(dir);
+            return static_cast<T>(HardcodedSH3p3(dir));
         }
       case 4:
         switch (m) {
           case -4:
-            return HardcodedSH4n4(dir);
+            return static_cast<T>(HardcodedSH4n4(dir));
           case -3:
-            return HardcodedSH4n3(dir);
+            return static_cast<T>(HardcodedSH4n3(dir));
           case -2:
-            return HardcodedSH4n2(dir);
+            return static_cast<T>(HardcodedSH4n2(dir));
           case -1:
-            return HardcodedSH4n1(dir);
+            return static_cast<T>(HardcodedSH4n1(dir));
           case 0:
-            return HardcodedSH40(dir);
+            return static_cast<T>(HardcodedSH40(dir));
           case 1:
-            return HardcodedSH4p1(dir);
+            return static_cast<T>(HardcodedSH4p1(dir));
           case 2:
-            return HardcodedSH4p2(dir);
+            return static_cast<T>(HardcodedSH4p2(dir));
           case 3:
-            return HardcodedSH4p3(dir);
+            return static_cast<T>(HardcodedSH4p3(dir));
           case 4:
-            return HardcodedSH4p4(dir);
+            return static_cast<T>(HardcodedSH4p4(dir));
         }
     }
 
     // This is unreachable given the CHECK's above but the compiler can't tell.
-    return 0.0;
+    return static_cast<T>(0.0);
   } else {
     // Not hard-coded so use the recurrence relation (which will convert this
     // to spherical coordinates).
-    return EvalSHSlow(l, m, dir);
+    return EvalSHSlow<T,S>(l, m, dir);
   }
 }
 
-std::unique_ptr<std::vector<double>> ProjectFunction(
-    int order, const SphericalFunction& func, int sample_count) {
+template <typename T, typename S>
+std::unique_ptr<std::vector<T>> ProjectFunction(
+    int order, const SphericalFunction<T,S>& func, int sample_count) {
   CHECK(order >= 0, "Order must be at least zero.");
   CHECK(sample_count > 0, "Sample count must be at least one.");
 
   // This is the approach demonstrated in [1] and is useful for arbitrary
   // functions on the sphere that are represented analytically.
   const int sample_side = static_cast<int>(floor(sqrt(sample_count)));
-  std::unique_ptr<std::vector<double>> coeffs(new std::vector<double>());
-  coeffs->assign(GetCoefficientCount(order), 0.0);
+  std::unique_ptr<std::vector<T>> coeffs(new std::vector<T>());
+  coeffs->assign(GetCoefficientCount(order), static_cast<T>(0.0));
 
   // generate sample_side^2 uniformly and stratified samples over the sphere
   std::random_device rd;
   std::mt19937 gen(rd());
-  std::uniform_real_distribution<> rng(0.0, 1.0);
+  std::uniform_real_distribution<S> rng(0.0, 1.0);
   for (int t = 0; t < sample_side; t++) {
     for (int p = 0; p < sample_side; p++) {
-      double alpha = (t + rng(gen)) / sample_side;
-      double beta = (p + rng(gen)) / sample_side;
+      S alpha = (t + rng(gen)) / sample_side;
+      S beta = (p + rng(gen)) / sample_side;
       // See http://www.bogotobogo.com/Algorithms/uniform_distribution_sphere.php
-      double phi = 2.0 * M_PI * beta;
-      double theta = acos(2.0 * alpha - 1.0);
+      S phi = 2.0 * M_PI * beta;
+      S theta = acos(2.0 * alpha - 1.0);
 
       // evaluate the analytic function for the current spherical coords
-      double func_value = func(phi, theta);
+      T func_value = func(phi, theta);
 
       // evaluate the SH basis functions up to band O, scale them by the
       // function's value and accumulate them over all generated samples
       for (int l = 0; l <= order; l++) {
         for (int m = -l; m <= l; m++) {
-          double sh = EvalSH(l, m, phi, theta);
+          T sh = EvalSH<T,S>(l, m, phi, theta);
           (*coeffs)[GetIndex(l, m)] += func_value * sh;
         }
       }
@@ -656,7 +724,7 @@ std::unique_ptr<std::vector<double>> ProjectFunction(
   // scale by the probability of a particular sample, which is
   // 4pi/sample_side^2. 4pi for the surface area of a unit sphere, and
   // 1/sample_side^2 for the number of samples drawn uniformly.
-  double weight = 4.0 * M_PI / (sample_side * sample_side);
+  T weight = 4.0 * M_PI / (sample_side * sample_side);
   for (unsigned int i = 0; i < coeffs->size(); i++) {
      (*coeffs)[i] *= weight;
   }
@@ -679,20 +747,20 @@ std::unique_ptr<std::vector<Eigen::Array3f>> ProjectEnvironment(
 
   Eigen::Array3f color;
   for (int t = 0; t < env.height(); t++) {
-    double theta = ImageYToTheta(t, env.height());
+    double theta = ImageYToTheta<double>(t, env.height());
     // The differential area of each pixel in the map is constant across a
     // row. Must scale the pixel_area by sin(theta) to account for the
     // stretching that occurs at the poles with this parameterization.
     double weight = pixel_area * sin(theta);
 
     for (int p = 0; p < env.width(); p++) {
-      double phi = ImageXToPhi(p, env.width());
+      double phi = ImageXToPhi<double>(p, env.width());
       color = env.GetPixel(p, t);
 
       for (int l = 0; l <= order; l++) {
         for (int m = -l; m <= l; m++) {
           int i = GetIndex(l, m);
-          double sh = EvalSH(l, m, phi, theta);
+          double sh = EvalSH<double, double>(l, m, phi, theta);
           (*coeffs)[i] += sh * weight * color.array();
         }
       }
@@ -702,9 +770,10 @@ std::unique_ptr<std::vector<Eigen::Array3f>> ProjectEnvironment(
   return coeffs;
 }
 
-std::unique_ptr<std::vector<double>> ProjectSparseSamples(
-    int order, const std::vector<Eigen::Vector3d>& dirs, 
-    const std::vector<double>& values) {
+template <typename T>
+std::unique_ptr<std::vector<T>> ProjectSparseSamples(
+    int order, const std::vector<Vector3<T>>& dirs, 
+    const std::vector<T>& values) {
   CHECK(order >= 0, "Order must be at least zero.");
   CHECK(dirs.size() == values.size(),
       "Directions and values must have the same size.");
@@ -713,27 +782,27 @@ std::unique_ptr<std::vector<double>> ProjectSparseSamples(
   // Each row in the matrix A are the values of the spherical harmonic basis
   // functions evaluated at that sample's direction (from @dirs). The
   // corresponding row in b is the value in @values.
-  std::unique_ptr<std::vector<double>> coeffs(new std::vector<double>());
+  std::unique_ptr<std::vector<T>> coeffs(new std::vector<T>());
   coeffs->assign(GetCoefficientCount(order), 0.0);
 
-  Eigen::MatrixXd basis_values(dirs.size(), coeffs->size());
-  Eigen::VectorXd func_values(dirs.size());
+  MatrixX<T> basis_values(dirs.size(), coeffs->size());
+  VectorX<T> func_values(dirs.size());
 
-  double phi, theta;
+  T phi, theta;
   for (unsigned int i = 0; i < dirs.size(); i++) {
     func_values(i) = values[i];
     ToSphericalCoords(dirs[i], &phi, &theta);
 
     for (int l = 0; l <= order; l++) {
       for (int m = -l; m <= l; m++) {
-        basis_values(i, GetIndex(l, m)) = EvalSH(l, m, phi, theta);
+        basis_values(i, GetIndex(l, m)) = EvalSH<T,T>(l, m, phi, theta);
       }
     }
   }
 
   // Use SVD to find the least squares fit for the coefficients of the basis
   // functions that best match the data
-  Eigen::VectorXd soln = basis_values.jacobiSvd(
+  VectorX<T> soln = basis_values.jacobiSvd(
       Eigen::ComputeThinU | Eigen::ComputeThinV).solve(func_values);
 
   // Copy everything over to our coeffs array
@@ -743,9 +812,10 @@ std::unique_ptr<std::vector<double>> ProjectSparseSamples(
   return coeffs;
 }
 
-std::unique_ptr<std::vector<double>> ProjectWeightedSparseSamples(
-    int order, const std::vector<Eigen::Vector3d>& dirs, 
-    const std::vector<double>& values, const std::vector<double>& weights) {
+template <typename T>
+std::unique_ptr<std::vector<T>> ProjectWeightedSparseSamples(
+    int order, const std::vector<Vector3<T>>& dirs, 
+    const std::vector<T>& values, const std::vector<T>& weights) {
   CHECK(order >= 0, "Order must be at least zero.");
   CHECK(dirs.size() == values.size(),
       "Directions and values must have the same size.");
@@ -756,15 +826,15 @@ std::unique_ptr<std::vector<double>> ProjectWeightedSparseSamples(
   // for the coefficients, x. Each row in the matrix A are the values of the
   // spherical harmonic basis functions evaluated at that sample's direction
   // (from @dirs). The corresponding row in b is the value in @values.
-  std::unique_ptr<std::vector<double>> coeffs(new std::vector<double>());
+  std::unique_ptr<std::vector<T>> coeffs(new std::vector<T>());
   coeffs->assign(GetCoefficientCount(order), 0.0);
 
-  Eigen::MatrixXd basis_values(dirs.size(), coeffs->size());
-  Eigen::VectorXd func_values(dirs.size());
-  Eigen::VectorXd weight_values(dirs.size());
-  Eigen::DiagonalMatrix<double, Eigen::Dynamic> W(dirs.size());
+  MatrixX<T> basis_values(dirs.size(), coeffs->size());
+  VectorX<T> func_values(dirs.size());
+  VectorX<T> weight_values(dirs.size());
+  Eigen::DiagonalMatrix<T, Eigen::Dynamic> W(dirs.size());
 
-  double phi, theta;
+  T phi, theta;
   for (unsigned int i = 0; i < dirs.size(); i++) {
     func_values(i) = values[i];
     weight_values(i)=sqrt(weights[i]);
@@ -772,7 +842,7 @@ std::unique_ptr<std::vector<double>> ProjectWeightedSparseSamples(
 
     for (int l = 0; l <= order; l++) {
       for (int m = -l; m <= l; m++) {
-        basis_values(i, GetIndex(l, m)) = EvalSH(l, m, phi, theta);
+        basis_values(i, GetIndex(l, m)) = EvalSH<T,T>(l, m, phi, theta);
       }
     }
   }
@@ -781,7 +851,7 @@ std::unique_ptr<std::vector<double>> ProjectWeightedSparseSamples(
 
   // Use SVD to find the least squares fit for the coefficients of the basis
   // functions that best match the data
-  Eigen::VectorXd soln = (W * basis_values).jacobiSvd(
+  VectorX<T> soln = (W * basis_values).jacobiSvd(
       Eigen::ComputeThinU | Eigen::ComputeThinV).solve(W * func_values);
 
   // Copy everything over to our coeffs array
@@ -791,11 +861,13 @@ std::unique_ptr<std::vector<double>> ProjectWeightedSparseSamples(
   return coeffs;
 }
 
-template <typename T>
-T EvalSHSum(int order, const std::vector<T>& coeffs, double phi, double theta) {
+template <typename T, typename S>
+T EvalSHSum(int order, const std::vector<T>& coeffs, S phi, S theta) {
+  using SHType = typename std::conditional<
+      std::is_same<T, Eigen::Array3f>::value, float, T>::type;
   if (order <= kHardCodedOrderLimit) {
     // It is faster to compute the cartesian coordinates once
-    return EvalSHSum(order, coeffs, ToVector(phi, theta));
+    return EvalSHSum<T,S>(order, coeffs, ToVector(phi, theta));
   }
 
   CHECK(GetCoefficientCount(order) == coeffs.size(),
@@ -803,30 +875,33 @@ T EvalSHSum(int order, const std::vector<T>& coeffs, double phi, double theta) {
   T sum = Zero<T>();
   for (int l = 0; l <= order; l++) {
     for (int m = -l; m <= l; m++) {
-      sum += EvalSH(l, m, phi, theta) * coeffs[GetIndex(l, m)];
+      sum += EvalSH<SHType,S>(l, m, phi, theta) * coeffs[GetIndex(l, m)];
     }
   }
   return sum;
 }
 
-template <typename T>
+template <typename T, typename S>
 T EvalSHSum(int order, const std::vector<T>& coeffs, 
-            const Eigen::Vector3d& dir) {
+            const Vector3<S>& dir) {
+  using SHType = typename std::conditional<
+      std::is_same<T, Eigen::Array3f>::value, float, T>::type;
   if (order > kHardCodedOrderLimit) {
     // It is faster to switch to spherical coordinates
-    double phi, theta;
+    S phi, theta;
     ToSphericalCoords(dir, &phi, &theta);
-    return EvalSHSum(order, coeffs, phi, theta);
+    return EvalSHSum<T,S>(order, coeffs, phi, theta);
   }
 
   CHECK(GetCoefficientCount(order) == coeffs.size(),
         "Incorrect number of coefficients provided.");
-  CHECK(NearByMargin(dir.squaredNorm(), 1.0), "dir is not unit.");
+  CHECK(NearByMargin(dir.squaredNorm(), static_cast<S>(1.0)),
+        "dir is not unit.");
 
   T sum = Zero<T>();
   for (int l = 0; l <= order; l++) {
     for (int m = -l; m <= l; m++) {
-      sum += EvalSH(l, m, dir) * coeffs[GetIndex(l, m)];
+      sum += EvalSH<SHType,S>(l, m, dir) * coeffs[GetIndex(l, m)];
     }
   }
   return sum;
@@ -881,7 +956,8 @@ std::unique_ptr<Rotation> Rotation::Create(int order,
                                            const Rotation& rotation) {
   CHECK(order >= 0, "Order must be at least 0.");
 
-  std::unique_ptr<Rotation> sh_rot(new Rotation(order, rotation.rotation_));
+  std::unique_ptr<Rotation> sh_rot(new Rotation(order,
+                                                rotation.rotation_));
 
   // Copy up to min(order, rotation.order_) band rotations into the new
   // SHRotation. For shared orders, they are the same. If the new order is
@@ -896,14 +972,6 @@ std::unique_ptr<Rotation> Rotation::Create(int order,
   }
 
   return sh_rot;
-}
-
-int Rotation::order() const { return order_; }
-
-Eigen::Quaterniond Rotation::rotation() const { return rotation_; }
-
-const Eigen::MatrixXd& Rotation::band_rotation(int l) const {
-  return band_rotations_[l];
 }
 
 template <typename T>
@@ -951,10 +1019,10 @@ void RenderDiffuseIrradianceMap(const Image& env_map, Image* diffuse_out) {
 void RenderDiffuseIrradianceMap(const std::vector<Eigen::Array3f>& sh_coeffs,
                                 Image* diffuse_out) {
   for (int y = 0; y < diffuse_out->height(); y++) {
-    double theta = ImageYToTheta(y, diffuse_out->height());
+    double theta = ImageYToTheta<double>(y, diffuse_out->height());
     for (int x = 0; x < diffuse_out->width(); x++) {
-      double phi = ImageXToPhi(x, diffuse_out->width());
-      Eigen::Vector3d normal = ToVector(phi, theta);
+      double phi = ImageXToPhi<double>(x, diffuse_out->width());
+      Vector3<double> normal = ToVector(phi, theta);
       Eigen::Array3f irradiance = RenderDiffuseIrradiance(sh_coeffs, normal);
       diffuse_out->SetPixel(x, y, irradiance);
     }
@@ -977,7 +1045,7 @@ Eigen::Array3f RenderDiffuseIrradiance(
   std::vector<double> rotated_cos(kIrradianceCoeffCount);
   std::unique_ptr<sh::Rotation> sh_rot(Rotation::Create(
       kIrradianceOrder, rotation));
-  sh_rot->Apply(cosine_lobe, &rotated_cos);
+  sh_rot->Apply(cosine_lobe<double>, &rotated_cos);
 
   Eigen::Array3f sum(0.0, 0.0, 0.0);
   // The cosine lobe is 9 coefficients and after that all bands are assumed to
@@ -995,27 +1063,116 @@ Eigen::Array3f RenderDiffuseIrradiance(
 }
 
 // ---- Template specializations -----------------------------------------------
+template Vector3<double> ToVector(double phi, double theta);
+template Vector3<float> ToVector(float phi, float theta);
 
-template double EvalSHSum<double>(int order, const std::vector<double>& coeffs,
-                                  double phi, double theta);
-template double EvalSHSum<double>(int order, const std::vector<double>& coeffs,
-                                  const Eigen::Vector3d& dir);
+template void ToSphericalCoords<double>(
+    const Vector3<double>& dir, double* phi, double* theta);
+template void ToSphericalCoords<float>(
+    const Vector3<float>& dir, float* phi, float* theta);
 
-template float EvalSHSum<float>(int order, const std::vector<float>& coeffs,
-                                double phi, double theta);
-template float EvalSHSum<float>(int order, const std::vector<float>& coeffs,
-                                const Eigen::Vector3d& dir);
+template double ImageXToPhi<double>(int x, int width);
+template float ImageXToPhi<float>(int x, int width);
 
-template Eigen::Array3f EvalSHSum<Eigen::Array3f>(
+template double ImageYToTheta<double>(int y, int height);
+template float ImageYToTheta<float>(int y, int height);
+
+template Vector2<double> ToImageCoords<double>(
+    double phi, double theta, int width, int height);
+template Vector2<float> ToImageCoords<float>(
+    float phi, float theta, int width, int height);
+
+template double EvalSH<double, double>(int l, int m, double phi, double theta);
+template float EvalSH<float, float>(int l, int m, float phi, float theta);
+template double EvalSH<double, float>(int l, int m, float phi, float theta);
+template float EvalSH<float, double>(int l, int m, double phi, double theta);
+
+template double EvalSH<double, double>(
+    int l, int m, const Vector3<double>& dir);
+template float EvalSH<float, float>(
+    int l, int m, const Vector3<float>& dir);
+template double EvalSH<double, float>(
+    int l, int m, const Vector3<float>& dir);
+template float EvalSH<float, double>(
+    int l, int m, const Vector3<double>& dir);
+
+template double EvalSHSlow<double, double>(
+    int l, int m, double phi, double theta);
+template float EvalSHSlow<float, float>(
+    int l, int m, float phi, float theta);
+template double EvalSHSlow<double, float>(
+    int l, int m, float phi, float theta);
+template float EvalSHSlow<float, double>(
+    int l, int m, double phi, double theta);
+
+template double EvalSHSlow<double, double>(
+    int l, int m, const Vector3<double>& dir);
+template float EvalSHSlow<float, float>(
+    int l, int m, const Vector3<float>& dir);
+template double EvalSHSlow<double, float>(
+    int l, int m, const Vector3<float>& dir);
+template float EvalSHSlow<float, double>(
+    int l, int m, const Vector3<double>& dir);
+
+template std::unique_ptr<std::vector<double>> ProjectFunction<double, double>(
+    int order, const SphericalFunction<double, double>& func, int sample_count);
+template std::unique_ptr<std::vector<float>> ProjectFunction<float, float>(
+    int order, const SphericalFunction<float, float>& func, int sample_count);
+template std::unique_ptr<std::vector<double>> ProjectFunction<double, float>(
+    int order, const SphericalFunction<double, float>& func, int sample_count);
+template std::unique_ptr<std::vector<float>> ProjectFunction<float, double>(
+    int order, const SphericalFunction<float, double>& func, int sample_count);
+
+template std::unique_ptr<std::vector<double>> ProjectSparseSamples<double>(
+    int order, const std::vector<Vector3<double>>& dirs,
+    const std::vector<double>& values);
+template std::unique_ptr<std::vector<float>> ProjectSparseSamples<float>(
+    int order, const std::vector<Vector3<float>>& dirs,
+    const std::vector<float>& values);
+
+template std::unique_ptr<std::vector<double>>
+    ProjectWeightedSparseSamples<double>(
+      int order, const std::vector<Vector3<double>>& dirs,
+      const std::vector<double>& values, const std::vector<double>& weights);
+template std::unique_ptr<std::vector<float>>
+    ProjectWeightedSparseSamples<float>(
+      int order, const std::vector<Vector3<float>>& dirs,
+      const std::vector<float>& values, const std::vector<float>& weights);
+
+template double EvalSHSum<double, double>(
+    int order, const std::vector<double>& coeffs, double phi, double theta);
+template float EvalSHSum<float, float>(
+    int order, const std::vector<float>& coeffs, float phi, float theta);
+template double EvalSHSum<double, float>(
+    int order, const std::vector<double>& coeffs, float phi, float theta);
+template float EvalSHSum<float, double>(
+    int order, const std::vector<float>& coeffs, double phi, double theta);
+
+template Eigen::Array3f EvalSHSum<Eigen::Array3f, double>(
     int order,  const std::vector<Eigen::Array3f>& coeffs,
     double phi, double theta);
-template Eigen::Array3f EvalSHSum<Eigen::Array3f>(
+template Eigen::Array3f EvalSHSum<Eigen::Array3f, float>(
     int order,  const std::vector<Eigen::Array3f>& coeffs,
-    const Eigen::Vector3d& dir);
+    float phi, float theta);
+
+template double EvalSHSum<double, double>(
+    int order, const std::vector<double>& coeffs, const Vector3<double>& dir);
+template float EvalSHSum<float, float>(
+    int order, const std::vector<float>& coeffs, const Vector3<float>& dir);
+template double EvalSHSum<double, float>(
+    int order, const std::vector<double>& coeffs, const Vector3<float>& dir);
+template float EvalSHSum<float, double>(
+    int order, const std::vector<float>& coeffs, const Vector3<double>& dir);
+
+template Eigen::Array3f EvalSHSum<Eigen::Array3f, double>(
+    int order,  const std::vector<Eigen::Array3f>& coeffs,
+    const Vector3<double>& dir);
+template Eigen::Array3f EvalSHSum<Eigen::Array3f, float>(
+    int order,  const std::vector<Eigen::Array3f>& coeffs,
+    const Vector3<float>& dir);
 
 template void Rotation::Apply<double>(const std::vector<double>& coeff,
                                        std::vector<double>* result) const;
-
 template void Rotation::Apply<float>(const std::vector<float>& coeff,
                                       std::vector<float>* result) const;
 
