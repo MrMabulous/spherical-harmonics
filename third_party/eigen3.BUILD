@@ -10,5 +10,4 @@ cc_library(
         exclude = ["Eigen/**/CMakeLists.txt"],
     ),
     defines = ["EIGEN_MPL2_ONLY"],
-    alwayslink = 1,
 )

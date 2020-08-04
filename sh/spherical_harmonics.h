@@ -41,14 +41,23 @@
 #include <functional>
 #include <memory>
 
+#include "Eigen/StdVector"
 #include "sh/image.h"
 
 namespace sh {
 
-// Type of SVD solver to use for ProjectSparseSamples.
-enum SvdType {
-  kJacobi,
-  kBdcs
+// Type of solver solver to use for ProjectSparseSamples.
+enum SolverType {
+  kJacobiSVD,
+  kBdcsSVD,
+  kHouseholderQR,
+  kColPivHouseholderQR,
+  kFullPivHouseholderQR,
+  kLDLT,
+  kLLT,
+  kCompleteOrthogonalDecomposition,
+  kPartialPivLU,
+  kFullPivLU
 };
 
 // A spherical function, the first argument is phi, the second is theta.
@@ -177,8 +186,8 @@ std::unique_ptr<std::vector<T>> ProjectFunction(
 // This fits three different functions, one for each color channel. The
 // coefficients for these functions are stored in the respective indices
 // of the Array3f values of the returned vector.
-std::unique_ptr<std::vector<Eigen::Array3f>> ProjectEnvironment(
-    int order, const Image& env);
+std::unique_ptr<std::vector<Eigen::Array3f>>
+    ProjectEnvironment(int order, const Image& env);
 
 // Fit the given samples of a spherical function to the SH basis functions
 // up to @order. This variant is used when there are relatively sparse
@@ -191,21 +200,22 @@ template <typename T>
 std::unique_ptr<std::vector<T>> ProjectSparseSamples(
     int order, const std::vector<Vector3<T>>& dirs,
     const std::vector<T>& values,
-    SvdType svdType = SvdType::kJacobi);
+    SolverType solverType = SolverType::kJacobiSVD);
 
 // Weighted version of ProjectSparseSamples.
 template <typename T>
 std::unique_ptr<std::vector<T>> ProjectWeightedSparseSamples(
     int order, const std::vector<Vector3<T>>& dirs,
     const std::vector<T>& values, const std::vector<T>& weights,
-    SvdType svdType = SvdType::kJacobi);
+    SolverType solverType = SolverType::kJacobiSVD);
 
 // Evaluate the already computed coefficients for the SH basis functions up
 // to @order, at the coordinates @phi and @theta. The length of the @coeffs
 // vector must be equal to GetCoefficientCount(order).
 // There are explicit instantiations for double, float, and Eigen::Array3f.
 template <typename T, typename S>
-T EvalSHSum(int order, const std::vector<T>& coeffs, S phi, S theta);
+T EvalSHSum(
+    int order, const std::vector<T>& coeffs, S phi, S theta);
 
 // As EvalSHSum, but inputting a direction vector instead of spherical coords.
 // Check will fail if @dir is not unit.
@@ -228,8 +238,9 @@ void RenderDiffuseIrradianceMap(const Image& env_map,
 // @diffuse_out must be set before calling this function. Note that a high
 // resolution is not necessary (64 x 32 is often quite sufficient).
 // See RenderDiffuseIrradiance for how @sh_coeffs is interpreted.
-void RenderDiffuseIrradianceMap(const std::vector<Eigen::Array3f>& sh_coeffs,
-                                Image* diffuse_out);
+void RenderDiffuseIrradianceMap(
+    const std::vector<Eigen::Array3f>& sh_coeffs,
+    Image* diffuse_out);
 
 // Compute the diffuse irradiance for @normal given the environment represented
 // as the provided spherical harmonic coefficients, @sh_coeffs. Check will
@@ -245,6 +256,9 @@ Eigen::Array3f RenderDiffuseIrradiance(
 
 class Rotation {
  public:
+  // Ensure proper alignment for Eigen SIMD.
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+
   // Create a new Rotation that can applies @rotation to sets of coefficients
   // for the given @order. @order must be at least 0.
   static std::unique_ptr<Rotation> Create(
@@ -268,7 +282,8 @@ class Rotation {
   // There are explicit instantiations for double, float, and Array3f.
   template <typename T>
   void Apply(
-      const std::vector<T>& coeffs, std::vector<T>* result) const;
+      const std::vector<T>& coeffs,
+      std::vector<T>* result) const;
 
   // The order (0-based) that the rotation was constructed with. It can only
   // transform coefficient vectors that were fit using the same order.

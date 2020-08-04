@@ -16,9 +16,6 @@
 #include "sh/spherical_harmonics.h"
 #include "gtest/gtest.h"
 
-#include <random>
-#include <chrono>
-
 namespace sh {
 
 namespace {
@@ -135,15 +132,16 @@ TYPED_TEST_CASE(TypedSphericalHarmonicsTest, Implementations);
 
 TYPED_TEST(TypedSphericalHarmonicsTest, ProjectFunction) {
   // The expected coefficients used to define the analytic spherical function
-  const std::vector<TypeParam> coeffs = {static_cast<TypeParam>(-1.028),
-                                         static_cast<TypeParam>(0.779),
-                                         static_cast<TypeParam>(-0.275),
-                                         static_cast<TypeParam>(0.601),
-                                         static_cast<TypeParam>(-0.256),
-                                         static_cast<TypeParam>(1.891),
-                                         static_cast<TypeParam>(-1.658),
-                                         static_cast<TypeParam>(-0.370),
-                                         static_cast<TypeParam>(-0.772)};
+  const std::vector<TypeParam> coeffs =
+      {static_cast<TypeParam>(-1.028),
+       static_cast<TypeParam>(0.779),
+       static_cast<TypeParam>(-0.275),
+       static_cast<TypeParam>(0.601),
+       static_cast<TypeParam>(-0.256),
+       static_cast<TypeParam>(1.891),
+       static_cast<TypeParam>(-1.658),
+       static_cast<TypeParam>(-0.370),
+       static_cast<TypeParam>(-0.772)};
 
   // Project and compare the fitted coefficients, which should be near identical
   // to the initial coefficients
@@ -162,14 +160,14 @@ TYPED_TEST(TypedSphericalHarmonicsTest, ProjectSparseSamples) {
   // These are the expected coefficients that define the sparse samples of
   // the underyling spherical function
   const std::vector<TypeParam> coeffs = {static_cast<TypeParam>(-0.591),
-                                         static_cast<TypeParam>(-0.713),
-                                         static_cast<TypeParam>(0.191),
-                                         static_cast<TypeParam>(1.206),
-                                         static_cast<TypeParam>(-0.587),
-                                         static_cast<TypeParam>(-0.051),
-                                         static_cast<TypeParam>(1.543),
-                                         static_cast<TypeParam>(-0.818),
-                                         static_cast<TypeParam>(1.482)};
+                                            static_cast<TypeParam>(-0.713),
+                                            static_cast<TypeParam>(0.191),
+                                            static_cast<TypeParam>(1.206),
+                                            static_cast<TypeParam>(-0.587),
+                                            static_cast<TypeParam>(-0.051),
+                                            static_cast<TypeParam>(1.543),
+                                            static_cast<TypeParam>(-0.818),
+                                            static_cast<TypeParam>(1.482)};
 
   // Generate sparse samples
   std::vector<Vector3<TypeParam>> sample_dirs;
@@ -188,53 +186,15 @@ TYPED_TEST(TypedSphericalHarmonicsTest, ProjectSparseSamples) {
   // Compute the sparse fit and given that the samples were drawn from the
   // spherical basis functions this should be a pretty ideal match
   std::unique_ptr<std::vector<TypeParam>> jacobi_fitted = ProjectSparseSamples(
-      2, sample_dirs, sample_vals, SvdType::kJacobi);
+      2, sample_dirs, sample_vals, SolverType::kJacobiSVD);
   ASSERT_TRUE(jacobi_fitted != nullptr);
   std::unique_ptr<std::vector<TypeParam>> bdcs_fitted = ProjectSparseSamples(
-      2, sample_dirs, sample_vals, SvdType::kBdcs);
+      2, sample_dirs, sample_vals, SolverType::kBdcsSVD);
   ASSERT_TRUE(bdcs_fitted != nullptr);
 
   for (int i = 0; i < 9; i++) {
     EXPECT_NEAR(coeffs[i], (*jacobi_fitted)[i], kCoeffErr);
     EXPECT_NEAR(coeffs[i], (*bdcs_fitted)[i], kCoeffErr);
-  }
-
-  printf("benchmarking performance for %s\n", std::is_same<TypeParam, float>::value ? "float" : "double");
-
-  TypeParam lower_bound = static_cast<TypeParam>(-2);
-  TypeParam upper_bound = static_cast<TypeParam>(2);
-  std::uniform_real_distribution<TypeParam> unif(lower_bound,upper_bound);
-  std::default_random_engine re;
-
-  for(int i=1; i<100; i++) {
-    sample_dirs.clear();
-    sample_vals.clear();
-    for (int t = 0; t < i; t++) {
-      TypeParam theta = static_cast<TypeParam>(t * M_PI / i);
-      for (int p = 0; p < 50; p++) {
-        TypeParam phi = static_cast<TypeParam>((p + t/static_cast<double>(i)) * 2.0 * M_PI / 50.0);
-        Vector3<TypeParam> dir = ToVector(phi, theta);
-        sample_dirs.push_back(dir);
-        sample_vals.push_back(unif(re));
-      }
-    }
-
-    //run 50 times each
-    auto start = std::chrono::high_resolution_clock::now();
-    for(int i=0; i<4; i++) {
-      ProjectSparseSamples(4, sample_dirs, sample_vals, SvdType::kJacobi);
-    }
-    auto finish = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> elapsed = finish - start;
-    printf("jacobi %d samples: %f milliseconds\n", i*50, std::chrono::duration_cast<std::chrono::microseconds>(elapsed).count()/4000.0f);
-
-    start = std::chrono::high_resolution_clock::now();
-    for(int i=0; i<4; i++) {
-      ProjectSparseSamples(4, sample_dirs, sample_vals, SvdType::kBdcs);
-    }
-    finish = std::chrono::high_resolution_clock::now();
-    elapsed = finish - start;
-    printf("BDCS   %d samples: %f milliseconds\n", i*50, std::chrono::duration_cast<std::chrono::microseconds>(elapsed).count()/4000.0f);
   }
 }
 
@@ -242,11 +202,11 @@ TEST(SphericalHarmonicsTest, ProjectEnvironment) {
   // These are the expected coefficients that define the environment map
   // passed into Project()
   const std::vector<double> c_red = {-1.028, 0.779, -0.275, 0.601, -0.256,
-                                     1.891, -1.658, -0.370, -0.772};
+                                        1.891, -1.658, -0.370, -0.772};
   const std::vector<double> c_green = {-0.591, -0.713, 0.191, 1.206, -0.587,
-                                       -0.051, 1.543, -0.818, 1.482};
+                                          -0.051, 1.543, -0.818, 1.482};
   const std::vector<double> c_blue = {-1.119, 0.559, 0.433, -0.680, -1.815,
-                                      -0.915, 1.345, 1.572, -0.622};
+                                         -0.915, 1.345, 1.572, -0.622};
 
   // Generate an environment map based off of c_red, c_green, and c_blue
   DefaultImage env_map(64, 32);  // This does not need to be a large map for the test
@@ -276,14 +236,14 @@ TEST(SphericalHarmonicsTest, ProjectEnvironment) {
 
 TYPED_TEST(TypedSphericalHarmonicsTest, EvalSHSum) {
   const std::vector<TypeParam> coeffs = {static_cast<TypeParam>(-1.119),
-                                         static_cast<TypeParam>(0.559),
-                                         static_cast<TypeParam>(0.433),
-                                         static_cast<TypeParam>(-0.680),
-                                         static_cast<TypeParam>(-1.815),
-                                         static_cast<TypeParam>(-0.915),
-                                         static_cast<TypeParam>(1.345),
-                                         static_cast<TypeParam>(1.572),
-                                         static_cast<TypeParam>(-0.622)};
+                                            static_cast<TypeParam>(0.559),
+                                            static_cast<TypeParam>(0.433),
+                                            static_cast<TypeParam>(-0.680),
+                                            static_cast<TypeParam>(-1.815),
+                                            static_cast<TypeParam>(-0.915),
+                                            static_cast<TypeParam>(1.345),
+                                            static_cast<TypeParam>(1.572),
+                                            static_cast<TypeParam>(-0.622)};
   TypeParam expected = 0.0;
   for (int l = 0; l <= 2; l++) {
     for (int m = -l; m <= l; m++) {
@@ -524,14 +484,14 @@ TYPED_TEST(TypedSphericalHarmonicsTest, EvalSHSumBadInputs) {
   // These are the expected coefficients that define the sparse samples of
   // the underyling spherical function
   const std::vector<TypeParam> coeffs = {static_cast<TypeParam>(-0.591),
-                                         static_cast<TypeParam>(-0.713),
-                                         static_cast<TypeParam>(0.191),
-                                         static_cast<TypeParam>(1.206),
-                                         static_cast<TypeParam>(-0.587),
-                                         static_cast<TypeParam>(-0.051),
-                                         static_cast<TypeParam>(1.543),
-                                         static_cast<TypeParam>(-0.818),
-                                         static_cast<TypeParam>(1.482)};
+                                            static_cast<TypeParam>(-0.713),
+                                            static_cast<TypeParam>(0.191),
+                                            static_cast<TypeParam>(1.206),
+                                            static_cast<TypeParam>(-0.587),
+                                            static_cast<TypeParam>(-0.051),
+                                            static_cast<TypeParam>(1.543),
+                                            static_cast<TypeParam>(-0.818),
+                                            static_cast<TypeParam>(1.482)};
   EXPECT_DEATH(EvalSHSum(3, coeffs, M_PI / 4, M_PI / 4),
                "Incorrect number of coefficients provided.");
 }
@@ -710,6 +670,13 @@ TEST(SphericalHarmonicsRotationTest, ClosedFormBands) {
               band_2(4, 4), kEpsilon);
 }
 
+TEST(SphericalHarmonicsRotationTest, ASDF) {
+  Eigen::Quaterniond r(Eigen::AngleAxisd(M_PI / 4.0, Eigen::Vector3d::UnitY()));
+  std::unique_ptr<Rotation> low_band(Rotation::Create(3, r));
+  std::unique_ptr<Rotation> high_band(Rotation::Create(5, r));
+  printf("test %f", high_band->band_rotation(2)(0,0));
+}
+
 TEST(SphericalHarmonicsRotationTest, CreateFromSHRotation) {
   Eigen::Quaterniond r(Eigen::AngleAxisd(M_PI / 4.0, Eigen::Vector3d::UnitY()));
   std::unique_ptr<Rotation> low_band(Rotation::Create(3, r));
@@ -775,11 +742,11 @@ TEST(SphericalHarmonicsRotationTest, RotateSymmetricFunction) {
 
 TEST(SphericalHarmonicsRotationTest, RotateComplexFunction) {
   const std::vector<double> coeff = {-1.028, 0.779, -0.275, 0.601, -0.256,
-                                     1.891, -1.658, -0.370, -0.772,
-                                     -0.591, -0.713, 0.191, 1.206, -0.587,
-                                     -0.051, 1.543, -0.370, -0.772,
-                                     -0.591, -0.713, 0.191, 1.206, -0.587,
-                                     -0.051, 1.543};
+                                        1.891, -1.658, -0.370, -0.772,
+                                        -0.591, -0.713, 0.191, 1.206, -0.587,
+                                        -0.051, 1.543, -0.370, -0.772,
+                                        -0.591, -0.713, 0.191, 1.206, -0.587,
+                                        -0.051, 1.543};
 
   Eigen::Vector3d axis = Eigen::Vector3d(-.43, 0.19, 0.634).normalized();
   std::vector<double> rotated_coeff;
@@ -875,11 +842,11 @@ TEST(SphericalHarmonicsRotationTest, RotateArray3f) {
 TEST(SphericalHarmonicsRotationTest, RotateArray3fInPlace) {
   // The coefficients for red, green, and blue channels
   const std::vector<double> c_red = {-1.028, 0.779, -0.275, 0.601, -0.256,
-                                     1.891, -1.658, -0.370, -0.772};
+                                        1.891, -1.658, -0.370, -0.772};
   const std::vector<double> c_green = {-0.591, -0.713, 0.191, 1.206, -0.587,
-                                       -0.051, 1.543, -0.818, 1.482};
+                                          -0.051, 1.543, -0.818, 1.482};
   const std::vector<double> c_blue = {-1.119, 0.559, 0.433, -0.680, -1.815,
-                                      -0.915, 1.345, 1.572, -0.622};
+                                         -0.915, 1.345, 1.572, -0.622};
 
   // Combined as an Array3f
   std::vector<Eigen::Array3f> combined;

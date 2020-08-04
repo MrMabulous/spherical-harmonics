@@ -11,6 +11,7 @@ cc_library(
     deps = [
         "@eigen3//:eigen3",
     ],
+	copts = ["/arch:AVX2"],
     visibility = ["//visibility:public"],
     alwayslink = 1
 )
@@ -23,6 +24,7 @@ cc_library(
         ":image",
         "@eigen3//:eigen3",
     ],
+	copts = ["/arch:AVX2"],
     defines = select({
         ":windows": ["_USE_MATH_DEFINES",],
     }),
@@ -49,6 +51,20 @@ cc_test(
         ":spherical_harmonics",
         "@gtest//:main",
     ],
+	copts = ["/arch:AVX2"],
     linkopts = ["-lm"],
 )
 
+cc_test(
+    name = "spherical_harmonics_benchmark",
+    size = "small",
+    srcs = [
+        "spherical_harmonics_benchmark.cc",
+    ],
+    deps = [
+        ":spherical_harmonics",
+        "@gtest//:main",
+    ],
+	copts = ["/arch:AVX2"],
+    linkopts = ["-lm"],
+)

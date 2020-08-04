@@ -40,14 +40,14 @@ const int kIrradianceCoeffCount = GetCoefficientCount(kIrradianceOrder);
 //   }, 10000000);
 template <typename T>
 const std::vector<T> cosine_lobe = { static_cast<T>(0.886227),
-                                     static_cast<T>(0.0),
-                                     static_cast<T>(1.02333),
-                                     static_cast<T>(0.0),
-                                     static_cast<T>(0.0),
-                                     static_cast<T>(0.0),
-                                     static_cast<T>(0.495416),
-                                     static_cast<T>(0.0),
-                                     static_cast<T>(0.0) };
+                                        static_cast<T>(0.0),
+                                        static_cast<T>(1.02333),
+                                        static_cast<T>(0.0),
+                                        static_cast<T>(0.0),
+                                        static_cast<T>(0.0),
+                                        static_cast<T>(0.495416),
+                                        static_cast<T>(0.0),
+                                        static_cast<T>(0.0) };
 
 // A zero template is required for EvalSHSum to handle its template
 // instantiations and a type's default constructor does not necessarily
@@ -692,7 +692,8 @@ std::unique_ptr<std::vector<T>> ProjectFunction(
   // This is the approach demonstrated in [1] and is useful for arbitrary
   // functions on the sphere that are represented analytically.
   const int sample_side = static_cast<int>(floor(sqrt(sample_count)));
-  std::unique_ptr<std::vector<T>> coeffs(new std::vector<T>());
+  std::unique_ptr<std::vector<T>>
+      coeffs(new std::vector<T>());
   coeffs->assign(GetCoefficientCount(order), static_cast<T>(0.0));
 
   // generate sample_side^2 uniformly and stratified samples over the sphere
@@ -774,7 +775,7 @@ template <typename T>
 std::unique_ptr<std::vector<T>> ProjectSparseSamples(
     int order, const std::vector<Vector3<T>>& dirs, 
     const std::vector<T>& values,
-    SvdType svdType) {
+    SolverType solverType) {
   CHECK(order >= 0, "Order must be at least zero.");
   CHECK(dirs.size() == values.size(),
       "Directions and values must have the same size.");
@@ -787,34 +788,68 @@ std::unique_ptr<std::vector<T>> ProjectSparseSamples(
   coeffs->assign(GetCoefficientCount(order), 0.0);
 
   MatrixX<T> basis_values(dirs.size(), coeffs->size());
-  VectorX<T> func_values(dirs.size());
+  Eigen::Map<VectorX<T>> func_values(const_cast<T*>(values.data()), dirs.size());
 
   T phi, theta;
   for (unsigned int i = 0; i < dirs.size(); i++) {
-    func_values(i) = values[i];
-    ToSphericalCoords(dirs[i], &phi, &theta);
+    if(order > kHardCodedOrderLimit) {
+      ToSphericalCoords(dirs[i], &phi, &theta);
+    }
 
     for (int l = 0; l <= order; l++) {
       for (int m = -l; m <= l; m++) {
-        basis_values(i, GetIndex(l, m)) = EvalSH<T,T>(l, m, phi, theta);
+        if(l <= kHardCodedOrderLimit) {
+          basis_values(i, GetIndex(l, m)) = EvalSH<T,T>(l, m, dirs[i]);
+        } else {
+          basis_values(i, GetIndex(l, m)) = EvalSH<T,T>(l, m, phi, theta);
+        }
       }
     }
   }
 
-  // Use SVD to find the least squares fit for the coefficients of the basis
+  // Find the least squares fit for the coefficients of the basis
   // functions that best match the data
   VectorX<T> soln;
-  switch(svdType) {
-    case SvdType::kJacobi:
+  MatrixX<T> t;
+  switch(solverType) {
+    case SolverType::kJacobiSVD:
       soln = basis_values.jacobiSvd(
           Eigen::ComputeThinU | Eigen::ComputeThinV).solve(func_values);
       break;
-    case SvdType::kBdcs:
+    case SolverType::kBdcsSVD:
       soln = basis_values.bdcSvd(
           Eigen::ComputeThinU | Eigen::ComputeThinV).solve(func_values);
       break;
+    case SolverType::kHouseholderQR:
+      soln = basis_values.householderQr().solve(func_values);
+      break;
+    case SolverType::kColPivHouseholderQR:
+      soln = basis_values.colPivHouseholderQr().solve(func_values);
+      break;
+    case SolverType::kFullPivHouseholderQR:
+      soln = basis_values.fullPivHouseholderQr().solve(func_values);
+      break;
+    case SolverType::kLDLT:
+      t = basis_values.transpose();
+      soln = (t * basis_values).ldlt().solve(t * func_values);
+      break;
+    case SolverType::kLLT:
+      t = basis_values.transpose();
+      soln = (t * basis_values).llt().solve(t * func_values);
+      break;
+    case SolverType::kCompleteOrthogonalDecomposition:
+      soln = basis_values.completeOrthogonalDecomposition().solve(func_values);
+      break;
+    case SolverType::kPartialPivLU:
+      t = basis_values.transpose();
+      soln = (t * basis_values).partialPivLu().solve(t * func_values);
+      break;
+    case SolverType::kFullPivLU:
+      t = basis_values.transpose();
+      soln = (t * basis_values).fullPivLu().solve(t * func_values);
+      break;
     default:
-      CHECK(false, "Invalid svdType.");
+      CHECK(false, "Invalid SolverType.");
   }
 
   // Copy everything over to our coeffs array
@@ -828,7 +863,7 @@ template <typename T>
 std::unique_ptr<std::vector<T>> ProjectWeightedSparseSamples(
     int order, const std::vector<Vector3<T>>& dirs, 
     const std::vector<T>& values, const std::vector<T>& weights,
-    SvdType svdType) {
+    SolverType solverType) {
   CHECK(order >= 0, "Order must be at least zero.");
   CHECK(dirs.size() == values.size(),
       "Directions and values must have the same size.");
@@ -843,39 +878,74 @@ std::unique_ptr<std::vector<T>> ProjectWeightedSparseSamples(
   coeffs->assign(GetCoefficientCount(order), 0.0);
 
   MatrixX<T> basis_values(dirs.size(), coeffs->size());
-  VectorX<T> func_values(dirs.size());
-  VectorX<T> weight_values(dirs.size());
+  Eigen::Map<VectorX<T>> func_values(const_cast<T*>(values.data()), dirs.size());
+  Eigen::Map<VectorX<T>> weight_values(const_cast<T*>(weights.data()), dirs.size());
   Eigen::DiagonalMatrix<T, Eigen::Dynamic> W(dirs.size());
+  W.diagonal() = weight_values;
 
   T phi, theta;
   for (unsigned int i = 0; i < dirs.size(); i++) {
-    func_values(i) = values[i];
-    weight_values(i)=sqrt(weights[i]);
-    ToSphericalCoords(dirs[i], &phi, &theta);
+    if(order > kHardCodedOrderLimit) {
+      ToSphericalCoords(dirs[i], &phi, &theta);
+    }
 
     for (int l = 0; l <= order; l++) {
       for (int m = -l; m <= l; m++) {
-        basis_values(i, GetIndex(l, m)) = EvalSH<T,T>(l, m, phi, theta);
+        if(l <= kHardCodedOrderLimit) {
+          basis_values(i, GetIndex(l, m)) = EvalSH<T,T>(l, m, dirs[i]);
+        } else {
+          basis_values(i, GetIndex(l, m)) = EvalSH<T,T>(l, m, phi, theta);
+        }
       }
     }
   }
 
-  W.diagonal() = weight_values;
+  MatrixX<T> weighed_basis_values = W * basis_values;
+  VectorX<T> weighed_func_values = W * func_values;
 
-  // Use SVD to find the least squares fit for the coefficients of the basis
+  // Find the least squares fit for the coefficients of the basis
   // functions that best match the data
   VectorX<T> soln;
-  switch(svdType) {
-    case SvdType::kJacobi:
-      soln = (W * basis_values).jacobiSvd(
-          Eigen::ComputeThinU | Eigen::ComputeThinV).solve(W * func_values);
+  MatrixX<T> t;
+  switch(solverType) {
+    case SolverType::kJacobiSVD:
+      soln = weighed_basis_values.jacobiSvd(
+          Eigen::ComputeThinU | Eigen::ComputeThinV).solve(weighed_func_values);
       break;
-    case SvdType::kBdcs:
-      soln = (W * basis_values).bdcSvd(
-          Eigen::ComputeThinU | Eigen::ComputeThinV).solve(W * func_values);
+    case SolverType::kBdcsSVD:
+      soln = weighed_basis_values.bdcSvd(
+          Eigen::ComputeThinU | Eigen::ComputeThinV).solve(weighed_func_values);
+      break;
+    case SolverType::kHouseholderQR:
+      soln = weighed_basis_values.householderQr().solve(weighed_func_values);
+      break;
+    case SolverType::kColPivHouseholderQR:
+      soln = weighed_basis_values.colPivHouseholderQr().solve(weighed_func_values);
+      break;
+    case SolverType::kFullPivHouseholderQR:
+      soln = weighed_basis_values.fullPivHouseholderQr().solve(weighed_func_values);
+      break;
+    case SolverType::kLDLT:
+      t = weighed_basis_values.transpose();
+      soln = (t * weighed_basis_values).ldlt().solve(t * weighed_func_values);
+      break;
+    case SolverType::kLLT:
+      t = weighed_basis_values.transpose();
+      soln = (t * weighed_basis_values).llt().solve(t * weighed_func_values);
+      break;
+    case SolverType::kCompleteOrthogonalDecomposition:
+      soln = weighed_basis_values.completeOrthogonalDecomposition().solve(weighed_func_values);
+      break;
+    case SolverType::kPartialPivLU:
+      t = weighed_basis_values.transpose();
+      soln = (t * weighed_basis_values).partialPivLu().solve(t * weighed_func_values);
+      break;
+    case SolverType::kFullPivLU:
+      t = weighed_basis_values.transpose();
+      soln = (t * weighed_basis_values).fullPivLu().solve(t * weighed_func_values);
       break;
     default:
-      CHECK(false, "Invalid svdType.");
+      CHECK(false, "Invalid SolverType.");
   }
 
   // Copy everything over to our coeffs array
@@ -886,7 +956,8 @@ std::unique_ptr<std::vector<T>> ProjectWeightedSparseSamples(
 }
 
 template <typename T, typename S>
-T EvalSHSum(int order, const std::vector<T>& coeffs, S phi, S theta) {
+T EvalSHSum(int order, const std::vector<T>& coeffs,
+            S phi, S theta) {
   using SHType = typename std::conditional<
       std::is_same<T, Eigen::Array3f>::value, float, T>::type;
   if (order <= kHardCodedOrderLimit) {
@@ -1035,13 +1106,14 @@ void Rotation::Apply(const std::vector<T>& coeff,
 }
 
 void RenderDiffuseIrradianceMap(const Image& env_map, Image* diffuse_out) {
-  std::unique_ptr<std::vector<Eigen::Array3f>> coeffs =
-      ProjectEnvironment(kIrradianceOrder, env_map);
+  std::unique_ptr<std::vector<Eigen::Array3f>>
+      coeffs = ProjectEnvironment(kIrradianceOrder, env_map);
   RenderDiffuseIrradianceMap(*coeffs, diffuse_out);
 }
 
-void RenderDiffuseIrradianceMap(const std::vector<Eigen::Array3f>& sh_coeffs,
-                                Image* diffuse_out) {
+void RenderDiffuseIrradianceMap(
+    const std::vector<Eigen::Array3f>& sh_coeffs,
+    Image* diffuse_out) {
   for (int y = 0; y < diffuse_out->height(); y++) {
     double theta = ImageYToTheta<double>(y, diffuse_out->height());
     for (int x = 0; x < diffuse_out->width(); x++) {
@@ -1102,59 +1174,81 @@ template std::unique_ptr<std::vector<float>> ProjectFunction<float, double>(
     int order, const SphericalFunction<float, double>& func, int sample_count);
 
 template std::unique_ptr<std::vector<double>> ProjectSparseSamples<double>(
-    int order, const std::vector<Vector3<double>>& dirs,
-    const std::vector<double>& values, SvdType svdType);
+    int order,
+    const std::vector<Vector3<double>>& dirs,
+    const std::vector<double>& values, SolverType solverType);
 template std::unique_ptr<std::vector<float>> ProjectSparseSamples<float>(
-    int order, const std::vector<Vector3<float>>& dirs,
-    const std::vector<float>& values, SvdType svdType);
+    int order,
+    const std::vector<Vector3<float>>& dirs,
+    const std::vector<float>& values, SolverType solverType);
 
 template std::unique_ptr<std::vector<double>>
     ProjectWeightedSparseSamples<double>(
-      int order, const std::vector<Vector3<double>>& dirs,
+      int order,
+      const std::vector<Vector3<double>>& dirs,
       const std::vector<double>& values, const std::vector<double>& weights,
-      SvdType svdType);
+      SolverType solverType);
 template std::unique_ptr<std::vector<float>>
     ProjectWeightedSparseSamples<float>(
-      int order, const std::vector<Vector3<float>>& dirs,
+      int order,
+      const std::vector<Vector3<float>>& dirs,
       const std::vector<float>& values, const std::vector<float>& weights,
-      SvdType svdType);
+      SolverType solverType);
 
 template double EvalSHSum<double, double>(
-    int order, const std::vector<double>& coeffs, double phi, double theta);
+    int order,
+    const std::vector<double>& coeffs,
+    double phi, double theta);
 template float EvalSHSum<float, float>(
-    int order, const std::vector<float>& coeffs, float phi, float theta);
+    int order,
+    const std::vector<float>& coeffs,
+    float phi, float theta);
 template double EvalSHSum<double, float>(
-    int order, const std::vector<double>& coeffs, float phi, float theta);
+    int order,
+    const std::vector<double>& coeffs,
+    float phi, float theta);
 template float EvalSHSum<float, double>(
-    int order, const std::vector<float>& coeffs, double phi, double theta);
+    int order,
+    const std::vector<float>& coeffs,
+    double phi, double theta);
 
 template Eigen::Array3f EvalSHSum<Eigen::Array3f, double>(
-    int order,  const std::vector<Eigen::Array3f>& coeffs,
+    int order,
+    const std::vector<Eigen::Array3f>& coeffs,
     double phi, double theta);
 template Eigen::Array3f EvalSHSum<Eigen::Array3f, float>(
-    int order,  const std::vector<Eigen::Array3f>& coeffs,
+    int order,
+    const std::vector<Eigen::Array3f>& coeffs,
     float phi, float theta);
 
 template double EvalSHSum<double, double>(
-    int order, const std::vector<double>& coeffs, const Vector3<double>& dir);
+    int order, const std::vector<double>& coeffs,
+    const Vector3<double>& dir);
 template float EvalSHSum<float, float>(
-    int order, const std::vector<float>& coeffs, const Vector3<float>& dir);
+    int order, const std::vector<float>& coeffs,
+    const Vector3<float>& dir);
 template double EvalSHSum<double, float>(
-    int order, const std::vector<double>& coeffs, const Vector3<float>& dir);
+    int order, const std::vector<double>& coeffs,
+    const Vector3<float>& dir);
 template float EvalSHSum<float, double>(
-    int order, const std::vector<float>& coeffs, const Vector3<double>& dir);
+    int order, const std::vector<float>& coeffs,
+    const Vector3<double>& dir);
 
 template Eigen::Array3f EvalSHSum<Eigen::Array3f, double>(
-    int order,  const std::vector<Eigen::Array3f>& coeffs,
+    int order,
+    const std::vector<Eigen::Array3f>& coeffs,
     const Vector3<double>& dir);
 template Eigen::Array3f EvalSHSum<Eigen::Array3f, float>(
-    int order,  const std::vector<Eigen::Array3f>& coeffs,
+    int order,
+    const std::vector<Eigen::Array3f>& coeffs,
     const Vector3<float>& dir);
 
-template void Rotation::Apply<double>(const std::vector<double>& coeff,
-                                       std::vector<double>* result) const;
-template void Rotation::Apply<float>(const std::vector<float>& coeff,
-                                      std::vector<float>* result) const;
+template void Rotation::Apply<double>(
+    const std::vector<double>& coeff,
+    std::vector<double>* result) const;
+template void Rotation::Apply<float>(
+    const std::vector<float>& coeff,
+    std::vector<float>* result) const;
 
 // The generic implementation for Rotate doesn't handle aggregate types
 // like Array3f so split it apart, use the generic version and then recombine
