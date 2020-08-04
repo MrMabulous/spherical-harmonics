@@ -773,7 +773,8 @@ std::unique_ptr<std::vector<Eigen::Array3f>> ProjectEnvironment(
 template <typename T>
 std::unique_ptr<std::vector<T>> ProjectSparseSamples(
     int order, const std::vector<Vector3<T>>& dirs, 
-    const std::vector<T>& values) {
+    const std::vector<T>& values,
+    SvdType svdType) {
   CHECK(order >= 0, "Order must be at least zero.");
   CHECK(dirs.size() == values.size(),
       "Directions and values must have the same size.");
@@ -802,8 +803,19 @@ std::unique_ptr<std::vector<T>> ProjectSparseSamples(
 
   // Use SVD to find the least squares fit for the coefficients of the basis
   // functions that best match the data
-  VectorX<T> soln = basis_values.jacobiSvd(
-      Eigen::ComputeThinU | Eigen::ComputeThinV).solve(func_values);
+  VectorX<T> soln;
+  switch(svdType) {
+    case SvdType::kJacobi:
+      soln = basis_values.jacobiSvd(
+          Eigen::ComputeThinU | Eigen::ComputeThinV).solve(func_values);
+      break;
+    case SvdType::kBdcs:
+      soln = basis_values.bdcSvd(
+          Eigen::ComputeThinU | Eigen::ComputeThinV).solve(func_values);
+      break;
+    default:
+      CHECK(false, "Invalid svdType.");
+  }
 
   // Copy everything over to our coeffs array
   for (unsigned int i = 0; i < coeffs->size(); i++) {
@@ -815,7 +827,8 @@ std::unique_ptr<std::vector<T>> ProjectSparseSamples(
 template <typename T>
 std::unique_ptr<std::vector<T>> ProjectWeightedSparseSamples(
     int order, const std::vector<Vector3<T>>& dirs, 
-    const std::vector<T>& values, const std::vector<T>& weights) {
+    const std::vector<T>& values, const std::vector<T>& weights,
+    SvdType svdType) {
   CHECK(order >= 0, "Order must be at least zero.");
   CHECK(dirs.size() == values.size(),
       "Directions and values must have the same size.");
@@ -851,8 +864,19 @@ std::unique_ptr<std::vector<T>> ProjectWeightedSparseSamples(
 
   // Use SVD to find the least squares fit for the coefficients of the basis
   // functions that best match the data
-  VectorX<T> soln = (W * basis_values).jacobiSvd(
-      Eigen::ComputeThinU | Eigen::ComputeThinV).solve(W * func_values);
+  VectorX<T> soln;
+  switch(svdType) {
+    case SvdType::kJacobi:
+      soln = (W * basis_values).jacobiSvd(
+          Eigen::ComputeThinU | Eigen::ComputeThinV).solve(W * func_values);
+      break;
+    case SvdType::kBdcs:
+      soln = (W * basis_values).bdcSvd(
+          Eigen::ComputeThinU | Eigen::ComputeThinV).solve(W * func_values);
+      break;
+    default:
+      CHECK(false, "Invalid svdType.");
+  }
 
   // Copy everything over to our coeffs array
   for (unsigned int i = 0; i < coeffs->size(); i++) {
@@ -1063,56 +1087,10 @@ Eigen::Array3f RenderDiffuseIrradiance(
 }
 
 // ---- Template specializations -----------------------------------------------
-template Vector3<double> ToVector(double phi, double theta);
-template Vector3<float> ToVector(float phi, float theta);
-
-template void ToSphericalCoords<double>(
-    const Vector3<double>& dir, double* phi, double* theta);
-template void ToSphericalCoords<float>(
-    const Vector3<float>& dir, float* phi, float* theta);
-
-template double ImageXToPhi<double>(int x, int width);
-template float ImageXToPhi<float>(int x, int width);
-
-template double ImageYToTheta<double>(int y, int height);
-template float ImageYToTheta<float>(int y, int height);
-
 template Vector2<double> ToImageCoords<double>(
     double phi, double theta, int width, int height);
 template Vector2<float> ToImageCoords<float>(
     float phi, float theta, int width, int height);
-
-template double EvalSH<double, double>(int l, int m, double phi, double theta);
-template float EvalSH<float, float>(int l, int m, float phi, float theta);
-template double EvalSH<double, float>(int l, int m, float phi, float theta);
-template float EvalSH<float, double>(int l, int m, double phi, double theta);
-
-template double EvalSH<double, double>(
-    int l, int m, const Vector3<double>& dir);
-template float EvalSH<float, float>(
-    int l, int m, const Vector3<float>& dir);
-template double EvalSH<double, float>(
-    int l, int m, const Vector3<float>& dir);
-template float EvalSH<float, double>(
-    int l, int m, const Vector3<double>& dir);
-
-template double EvalSHSlow<double, double>(
-    int l, int m, double phi, double theta);
-template float EvalSHSlow<float, float>(
-    int l, int m, float phi, float theta);
-template double EvalSHSlow<double, float>(
-    int l, int m, float phi, float theta);
-template float EvalSHSlow<float, double>(
-    int l, int m, double phi, double theta);
-
-template double EvalSHSlow<double, double>(
-    int l, int m, const Vector3<double>& dir);
-template float EvalSHSlow<float, float>(
-    int l, int m, const Vector3<float>& dir);
-template double EvalSHSlow<double, float>(
-    int l, int m, const Vector3<float>& dir);
-template float EvalSHSlow<float, double>(
-    int l, int m, const Vector3<double>& dir);
 
 template std::unique_ptr<std::vector<double>> ProjectFunction<double, double>(
     int order, const SphericalFunction<double, double>& func, int sample_count);
@@ -1125,19 +1103,21 @@ template std::unique_ptr<std::vector<float>> ProjectFunction<float, double>(
 
 template std::unique_ptr<std::vector<double>> ProjectSparseSamples<double>(
     int order, const std::vector<Vector3<double>>& dirs,
-    const std::vector<double>& values);
+    const std::vector<double>& values, SvdType svdType);
 template std::unique_ptr<std::vector<float>> ProjectSparseSamples<float>(
     int order, const std::vector<Vector3<float>>& dirs,
-    const std::vector<float>& values);
+    const std::vector<float>& values, SvdType svdType);
 
 template std::unique_ptr<std::vector<double>>
     ProjectWeightedSparseSamples<double>(
       int order, const std::vector<Vector3<double>>& dirs,
-      const std::vector<double>& values, const std::vector<double>& weights);
+      const std::vector<double>& values, const std::vector<double>& weights,
+      SvdType svdType);
 template std::unique_ptr<std::vector<float>>
     ProjectWeightedSparseSamples<float>(
       int order, const std::vector<Vector3<float>>& dirs,
-      const std::vector<float>& values, const std::vector<float>& weights);
+      const std::vector<float>& values, const std::vector<float>& weights,
+      SvdType svdType);
 
 template double EvalSHSum<double, double>(
     int order, const std::vector<double>& coeffs, double phi, double theta);

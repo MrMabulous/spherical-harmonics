@@ -45,6 +45,12 @@
 
 namespace sh {
 
+// Type of SVD solver to use for ProjectSparseSamples.
+enum SvdType {
+  kJacobi,
+  kBdcs
+};
+
 // A spherical function, the first argument is phi, the second is theta.
 // See EvalSH(int, int, double, double) for a description of these terms.
 template<typename T, typename S>
@@ -180,16 +186,19 @@ std::unique_ptr<std::vector<Eigen::Array3f>> ProjectEnvironment(
 // regression is performed.
 // @dirs and @values must have the same size. The directions in @dirs are
 // assumed to be unit.
+// @svdType defines which regression algorithm is used.
 template <typename T>
 std::unique_ptr<std::vector<T>> ProjectSparseSamples(
     int order, const std::vector<Vector3<T>>& dirs,
-    const std::vector<T>& values);
+    const std::vector<T>& values,
+    SvdType svdType = SvdType::kJacobi);
 
 // Weighted version of ProjectSparseSamples.
 template <typename T>
 std::unique_ptr<std::vector<T>> ProjectWeightedSparseSamples(
     int order, const std::vector<Vector3<T>>& dirs,
-    const std::vector<T>& values, const std::vector<T>& weights);
+    const std::vector<T>& values, const std::vector<T>& weights,
+    SvdType svdType = SvdType::kJacobi);
 
 // Evaluate the already computed coefficients for the SH basis functions up
 // to @order, at the coordinates @phi and @theta. The length of the @coeffs

@@ -16,6 +16,9 @@
 #include "sh/spherical_harmonics.h"
 #include "gtest/gtest.h"
 
+#include <random>
+#include <chrono>
+
 namespace sh {
 
 namespace {
@@ -184,12 +187,54 @@ TYPED_TEST(TypedSphericalHarmonicsTest, ProjectSparseSamples) {
 
   // Compute the sparse fit and given that the samples were drawn from the
   // spherical basis functions this should be a pretty ideal match
-  std::unique_ptr<std::vector<TypeParam>> fitted = ProjectSparseSamples(
-      2, sample_dirs, sample_vals);
-  ASSERT_TRUE(fitted != nullptr);
+  std::unique_ptr<std::vector<TypeParam>> jacobi_fitted = ProjectSparseSamples(
+      2, sample_dirs, sample_vals, SvdType::kJacobi);
+  ASSERT_TRUE(jacobi_fitted != nullptr);
+  std::unique_ptr<std::vector<TypeParam>> bdcs_fitted = ProjectSparseSamples(
+      2, sample_dirs, sample_vals, SvdType::kBdcs);
+  ASSERT_TRUE(bdcs_fitted != nullptr);
 
   for (int i = 0; i < 9; i++) {
-    EXPECT_NEAR(coeffs[i], (*fitted)[i], kCoeffErr);
+    EXPECT_NEAR(coeffs[i], (*jacobi_fitted)[i], kCoeffErr);
+    EXPECT_NEAR(coeffs[i], (*bdcs_fitted)[i], kCoeffErr);
+  }
+
+  printf("benchmarking performance for %s\n", std::is_same<TypeParam, float>::value ? "float" : "double");
+
+  TypeParam lower_bound = static_cast<TypeParam>(-2);
+  TypeParam upper_bound = static_cast<TypeParam>(2);
+  std::uniform_real_distribution<TypeParam> unif(lower_bound,upper_bound);
+  std::default_random_engine re;
+
+  for(int i=1; i<100; i++) {
+    sample_dirs.clear();
+    sample_vals.clear();
+    for (int t = 0; t < i; t++) {
+      TypeParam theta = static_cast<TypeParam>(t * M_PI / i);
+      for (int p = 0; p < 50; p++) {
+        TypeParam phi = static_cast<TypeParam>((p + t/static_cast<double>(i)) * 2.0 * M_PI / 50.0);
+        Vector3<TypeParam> dir = ToVector(phi, theta);
+        sample_dirs.push_back(dir);
+        sample_vals.push_back(unif(re));
+      }
+    }
+
+    //run 50 times each
+    auto start = std::chrono::high_resolution_clock::now();
+    for(int i=0; i<4; i++) {
+      ProjectSparseSamples(4, sample_dirs, sample_vals, SvdType::kJacobi);
+    }
+    auto finish = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed = finish - start;
+    printf("jacobi %d samples: %f milliseconds\n", i*50, std::chrono::duration_cast<std::chrono::microseconds>(elapsed).count()/4000.0f);
+
+    start = std::chrono::high_resolution_clock::now();
+    for(int i=0; i<4; i++) {
+      ProjectSparseSamples(4, sample_dirs, sample_vals, SvdType::kBdcs);
+    }
+    finish = std::chrono::high_resolution_clock::now();
+    elapsed = finish - start;
+    printf("BDCS   %d samples: %f milliseconds\n", i*50, std::chrono::duration_cast<std::chrono::microseconds>(elapsed).count()/4000.0f);
   }
 }
 
