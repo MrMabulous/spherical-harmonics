@@ -11,7 +11,6 @@ cc_library(
     deps = [
         "@eigen3//:eigen3",
     ],
-	copts = ["/arch:AVX2"],
     visibility = ["//visibility:public"],
     alwayslink = 1
 )
@@ -19,12 +18,23 @@ cc_library(
 cc_library(
     name = "spherical_harmonics",
     srcs = ["spherical_harmonics.cc"],
-    hdrs = ["spherical_harmonics.h"],
+    hdrs = [
+        "spherical_harmonics.h",
+        "efficient_sh_evaluation.h"
+    ],
     deps = [
         ":image",
         "@eigen3//:eigen3",
     ],
-	copts = ["/arch:AVX2"],
+    #copts = [
+    #    "/arch:AVX2",
+    #    "/D__SSE__",
+    #    "/D__SSE2__",
+    #    "/D__SSE3__",
+    #    "/D__SSSE3__",
+    #    "/D__SSE4_1__",
+    #    "/D__SSE4_2__"
+    #],
     defines = select({
         ":windows": ["_USE_MATH_DEFINES",],
     }),
@@ -51,7 +61,15 @@ cc_test(
         ":spherical_harmonics",
         "@gtest//:main",
     ],
-	copts = ["/arch:AVX2"],
+    #copts = [
+    #    "/arch:AVX2",
+    #    "/D__SSE__",
+    #    "/D__SSE2__",
+    #    "/D__SSE3__",
+    #    "/D__SSSE3__",
+    #    "/D__SSE4_1__",
+    #    "/D__SSE4_2__"
+    #],
     linkopts = ["-lm"],
 )
 
@@ -65,6 +83,14 @@ cc_test(
         ":spherical_harmonics",
         "@gtest//:main",
     ],
-	copts = ["/arch:AVX2"],
+    #copts = [
+    #    "/arch:AVX2",
+    #    "/D__SSE__",
+    #    "/D__SSE2__",
+    #    "/D__SSE3__",
+    #    "/D__SSSE3__",
+    #    "/D__SSE4_1__",
+    #    "/D__SSE4_2__"
+    #],
     linkopts = ["-lm"],
 )

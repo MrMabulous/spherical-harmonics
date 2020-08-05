@@ -16,22 +16,32 @@
 
 namespace sh {
 
-DefaultImage::DefaultImage(int width, int height) : width_(width), height_(height) {
-  pixels_.reset(new Eigen::Array3f[width * height]);
+template <typename T>
+DefaultImage<T>::DefaultImage(int width, int height)
+    : width_(width), height_(height) {
+  pixels_.reset(new Eigen::Array<T,3,1>[width * height]);
 }
 
-int DefaultImage::width() const { return width_; }
+template <typename T>
+int DefaultImage<T>::width() const { return width_; }
 
-int DefaultImage::height() const { return height_; }
+template <typename T>
+int DefaultImage<T>::height() const { return height_; }
 
-Eigen::Array3f DefaultImage::GetPixel(int x, int y) const {
+template <typename T>
+Eigen::Array<T,3,1> DefaultImage<T>::GetPixel(int x, int y) const {
   int index = x + y * width_;
   return pixels_[index];
 }
 
-void DefaultImage::SetPixel(int x, int y, const Eigen::Array3f& v) {
+template <typename T>
+void DefaultImage<T>::SetPixel(int x, int y, const Eigen::Array<T,3,1>& v) {
   int index = x + y * width_;
   pixels_[index] = v;
 }
+
+// Explicit template instantiation.
+template class DefaultImage<float>;
+template class DefaultImage<double>;
 
 }  // namespace sh

@@ -25,6 +25,7 @@
 
 namespace sh {
 
+template <typename T>
 class Image {
  public:
   Image() {}
@@ -33,8 +34,8 @@ class Image {
   virtual int width() const = 0;
   virtual int height() const = 0;
 
-  virtual Eigen::Array3f GetPixel(int x, int y) const = 0;
-  virtual void SetPixel(int x, int y, const Eigen::Array3f& v) = 0;
+  virtual Eigen::Array<T,3,1> GetPixel(int x, int y) const = 0;
+  virtual void SetPixel(int x, int y, const Eigen::Array<T,3,1>& v) = 0;
 };
 
 }  // namespace sh

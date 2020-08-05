@@ -15,6 +15,7 @@ namespace sh {
 #define ANSI_COLOR_RESET   "\x1b[0m"
 
 struct Result {
+  Result() : duration(0), error(0) {}
   std::chrono::duration<double> duration;
   double error;
 };
@@ -58,66 +59,62 @@ TYPED_TEST(TypedSphericalHarmonicsBechmark, ProjectSparseSamples) {
   constexpr int order = 4;
 
   // Generate sparse samples
-  std::vector<Vector3<TypeParam>> sample_dirs;
-  std::vector<TypeParam> sample_vals;
+  algn_vector<Vector3<TypeParam>> sample_dirs;
+  algn_vector<TypeParam> sample_vals;
   TypeParam lower_bound = static_cast<TypeParam>(-2);
   TypeParam upper_bound = static_cast<TypeParam>(2);
   std::uniform_real_distribution<TypeParam> unif(lower_bound,upper_bound);
   std::default_random_engine re;
   TypeParam rn = unif(re);
   Result results[num_solvers];
-  for(int i=1; i<400;) {
+  
+  // run each solver n times and average
+  const int n = 10;
+  for(int i=1; i<4000;) {
     sample_dirs.clear();
     sample_vals.clear();
-    for (int t = 0; t < i; t++) {
-      TypeParam theta = static_cast<TypeParam>((t + 0.5) * M_PI / i);
-      for (int p = 0; p < 10; p++) {
-        TypeParam phi = static_cast<TypeParam>((p + t/static_cast<double>(i)) * 2.0 * M_PI / 10.0);
-        Vector3<TypeParam> dir = ToVector(phi, theta);
+    const int samples = i;
+
+    for(int j = 0; j < n; j++) {
+      for(int d = 0; d < i; d++) {
+        sample_vals.push_back(unif(re));
+        Vector3<TypeParam> dir(unif(re), unif(re), unif(re));
+        dir.normalize();
         sample_dirs.push_back(dir);
-        sample_vals.push_back(rn);
-        rn = rn * static_cast<TypeParam>(0.9) + unif(re) * static_cast<TypeParam>(0.1);
+      }
+
+      for(int s = 0; s < num_solvers; s++) {
+        algn_vector<TypeParam> solution;
+        auto start = std::chrono::high_resolution_clock::now();
+        ProjectSparseSamples(order, sample_dirs, sample_vals, &solution, solvers[s]);
+        auto finish = std::chrono::high_resolution_clock::now();
+        results[s].duration += finish - start;
+
+        double error = 0.0;
+        for(int d = 0; d<samples; d++) {
+          double diff = sample_vals[d] - EvalSHSum(order, solution, sample_dirs[d]);
+          error += diff * diff;
+        }
+        error /= samples;
+        results[s].error += error;
       }
     }
 
-    //run each solver 5 times and average
-    const int n = 10;
-    const int samples = i*10;
-
-    auto start = std::chrono::high_resolution_clock::now();
-    auto finish = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> min_duration = std::chrono::duration<double>::max();
     double min_error = std::numeric_limits<double>::max();
     for(int s = 0; s < num_solvers; s++) {
-      std::unique_ptr<std::vector<TypeParam>> solution;
-      start = std::chrono::high_resolution_clock::now();
-      for(int k=0; k<n; k++) {
-        solution = ProjectSparseSamples(order, sample_dirs, sample_vals, solvers[s]);
-      }
-      finish = std::chrono::high_resolution_clock::now();
-      results[s].duration = finish - start;
-
-      double error = 0.0;
-      for(int d = 0; d<samples; d++) {
-        double diff = sample_vals[d] - EvalSHSum(order, *solution, sample_dirs[d]);
-        error += diff * diff;
-      }
-      error /= samples;
-      results[s].error = error;
-      
       if(results[s].duration < min_duration)
         min_duration = results[s].duration;
-
-      if(error < min_error)
-        min_error = error;
+      if(results[s].error < min_error)
+        min_error = results[s].error; 
     }
 
     double min_ms = std::chrono::duration_cast<std::chrono::microseconds>(min_duration).count()/(n * 1000.0f);
+    min_error /= n;
     for(int s = 0; s < num_solvers; s++) {
       double ms = std::chrono::duration_cast<std::chrono::microseconds>(results[s].duration).count()/(n * 1000.0f);
-      double error = results[s].error;
-      const char* col = (ms == min_ms) ? ANSI_COLOR_GREEN : ANSI_COLOR_RESET;
-      printf("%s%d samples: %08.5f milliseconds %s(%05.2fx)%s avg square error: %011.8f (%08.6fx)\n", solver_names[s].c_str(), samples, ms, col, ms / min_ms, ANSI_COLOR_RESET, error, error / min_error);
+      double error = results[s].error / n;
+      printf("%s%d samples: %08.5f milliseconds (%05.2fx) avg square error: %011.8f (%08.6fx)\n", solver_names[s].c_str(), samples, ms, ms / min_ms, error, error / min_error);
     }
 
     printf("\n");
@@ -126,8 +123,10 @@ TYPED_TEST(TypedSphericalHarmonicsBechmark, ProjectSparseSamples) {
       i++;
     else if(i < 100)
       i+=10;
-    else
+    else if(i < 1000)
       i+=100;
+    else
+      i+=1000;
   }
 }
 

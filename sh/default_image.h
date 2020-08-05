@@ -20,21 +20,22 @@
 
 namespace sh {
 
-class DefaultImage : public Image {
+template <typename T>
+class DefaultImage : public Image<T> {
  public:
   DefaultImage(int width, int height);
   
   int width() const override;
   int height() const override;
 
-  Eigen::Array3f GetPixel(int x, int y) const override;
-  void SetPixel(int x, int y, const Eigen::Array3f& v) override;
+  Eigen::Array<T,3,1> GetPixel(int x, int y) const override;
+  void SetPixel(int x, int y, const Eigen::Array<T,3,1>& v) override;
 
  private:
   const int width_;
   const int height_;
 
-  std::unique_ptr<Eigen::Array3f[]> pixels_;
+  std::unique_ptr<Eigen::Array<T,3,1>[]> pixels_;
 };
 
 }  // namespace sh

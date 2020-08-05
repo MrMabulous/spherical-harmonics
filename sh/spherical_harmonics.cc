@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "sh/efficient_sh_evaluation.h"
 #include "sh/spherical_harmonics.h"
 
 #include <iostream>
@@ -27,6 +28,7 @@ namespace {
 const int kCacheSize = 16;
 
 const int kHardCodedOrderLimit = 4;
+const int kEfficientOrderLimit = 9;
 
 const int kIrradianceOrder = 2;
 const int kIrradianceCoeffCount = GetCoefficientCount(kIrradianceOrder);
@@ -39,15 +41,15 @@ const int kIrradianceCoeffCount = GetCoefficientCount(kIrradianceOrder);
 //                  0.0, 1.0);
 //   }, 10000000);
 template <typename T>
-const std::vector<T> cosine_lobe = { static_cast<T>(0.886227),
-                                        static_cast<T>(0.0),
-                                        static_cast<T>(1.02333),
-                                        static_cast<T>(0.0),
-                                        static_cast<T>(0.0),
-                                        static_cast<T>(0.0),
-                                        static_cast<T>(0.495416),
-                                        static_cast<T>(0.0),
-                                        static_cast<T>(0.0) };
+const algn_vector<T> cosine_lobe = { static_cast<T>(0.886227),
+                                     static_cast<T>(0.0),
+                                     static_cast<T>(1.02333),
+                                     static_cast<T>(0.0),
+                                     static_cast<T>(0.0),
+                                     static_cast<T>(0.0),
+                                     static_cast<T>(0.495416),
+                                     static_cast<T>(0.0),
+                                     static_cast<T>(0.0) };
 
 // A zero template is required for EvalSHSum to handle its template
 // instantiations and a type's default constructor does not necessarily
@@ -55,7 +57,16 @@ const std::vector<T> cosine_lobe = { static_cast<T>(0.886227),
 template<typename T> T Zero();
 template<> double Zero() { return 0.0; }
 template<> float Zero() { return 0.0; }
-template<> Eigen::Array3f Zero() { return Eigen::Array3f::Zero(); }
+template<> Array3<float> Zero() { return Array3<float>::Zero(); }
+template<> Array3<double> Zero() { return Array3<double>::Zero(); }
+
+// Scalar type of template types.
+template<typename T>
+struct scalar_type { using type = T; };
+template<> struct scalar_type<Array3<float>> { using type = float; };
+template<> struct scalar_type<Array3<double>> { using type = double; };
+template<typename T>
+using scalar_t = typename scalar_type<T>::type;
 
 template <class T>
 using VectorX = Eigen::Matrix<T, Eigen::Dynamic, 1>;
@@ -401,7 +412,7 @@ T GetCenteredElement(const MatrixX<T>& r, int i, int j) {
 // This should not be called on its own, as U, V, and W (and their coefficients)
 // select the appropriate matrix elements to access (arguments @a and @b).
 template <typename T>
-T P(int i, int a, int b, int l, const std::vector<MatrixX<T>>& r) {
+T P(int i, int a, int b, int l, const algn_vector<MatrixX<T>>& r) {
   if (b == l) {
     return GetCenteredElement(r[1], i, 1) *
         GetCenteredElement(r[l - 1], a, l - 1) -
@@ -423,14 +434,14 @@ T P(int i, int a, int b, int l, const std::vector<MatrixX<T>>& r) {
 // are out of bounds. The list of rotations, @r, must have the @l - 1
 // previously completed band rotations. These functions are valid for l >= 2.
 template <typename T>
-T U(int m, int n, int l, const std::vector<MatrixX<T>>& r) {
+T U(int m, int n, int l, const algn_vector<MatrixX<T>>& r) {
   // Although [1, 4] split U into three cases for m == 0, m < 0, m > 0
   // the actual values are the same for all three cases
   return P(0, m, n, l, r);
 }
 
 template <typename T>
-T V(int m, int n, int l, const std::vector<MatrixX<T>>& r) {
+T V(int m, int n, int l, const algn_vector<MatrixX<T>>& r) {
   if (m == 0) {
     return P(1, 1, n, l, r) + P(-1, -1, n, l, r);
   } else if (m > 0) {
@@ -448,7 +459,7 @@ T V(int m, int n, int l, const std::vector<MatrixX<T>>& r) {
 }
 
 template <typename T>
-T W(int m, int n, int l, const std::vector<MatrixX<T>>& r) {
+T W(int m, int n, int l, const algn_vector<MatrixX<T>>& r) {
   if (m == 0) {
     // whenever this happens, w is also 0 so W can be anything
     return 0.0;
@@ -480,7 +491,7 @@ void ComputeUVWCoeff(int m, int n, int l, T* u, T* v, T* w) {
 // This implementation comes from p. 5 (6346), Table 1 and 2 in [4] taking
 // into account the corrections from [4b].
 template <typename T>
-void ComputeBandRotation(int l, std::vector<MatrixX<T>>* rotations) {
+void ComputeBandRotation(int l, algn_vector<MatrixX<T>>* rotations) {
   // The band's rotation matrix has rows and columns equal to the number of
   // coefficients within that band (-l <= m <= l implies 2l + 1 coefficients).
   MatrixX<T> rotation(2 * l + 1, 2 * l + 1);
@@ -684,7 +695,7 @@ T EvalSH(int l, int m, const Vector3<S>& dir) {
 }
 
 template <typename T, typename S>
-std::unique_ptr<std::vector<T>> ProjectFunction(
+std::unique_ptr<algn_vector<T>> ProjectFunction(
     int order, const SphericalFunction<T,S>& func, int sample_count) {
   CHECK(order >= 0, "Order must be at least zero.");
   CHECK(sample_count > 0, "Sample count must be at least one.");
@@ -692,8 +703,8 @@ std::unique_ptr<std::vector<T>> ProjectFunction(
   // This is the approach demonstrated in [1] and is useful for arbitrary
   // functions on the sphere that are represented analytically.
   const int sample_side = static_cast<int>(floor(sqrt(sample_count)));
-  std::unique_ptr<std::vector<T>>
-      coeffs(new std::vector<T>());
+  std::unique_ptr<algn_vector<T>>
+      coeffs(new algn_vector<T>());
   coeffs->assign(GetCoefficientCount(order), static_cast<T>(0.0));
 
   // generate sample_side^2 uniformly and stratified samples over the sphere
@@ -733,8 +744,9 @@ std::unique_ptr<std::vector<T>> ProjectFunction(
   return coeffs;
 }
 
-std::unique_ptr<std::vector<Eigen::Array3f>> ProjectEnvironment(
-    int order, const Image& env) {
+template <typename T>
+std::unique_ptr<algn_vector<Array3<T>>> ProjectEnvironment(
+    int order, const Image<T>& env) {
   CHECK(order >= 0, "Order must be at least zero.");
 
   // An environment map projection is three different spherical functions, one
@@ -742,11 +754,12 @@ std::unique_ptr<std::vector<Eigen::Array3f>> ProjectEnvironment(
   // iterating over every pixel within the image.
   double pixel_area = (2.0 * M_PI / env.width()) * (M_PI / env.height());
 
-  std::unique_ptr<std::vector<Eigen::Array3f>> coeffs(
-      new std::vector<Eigen::Array3f>());
-  coeffs->assign(GetCoefficientCount(order), Eigen::Array3f(0.0, 0.0, 0.0));
+  std::unique_ptr<algn_vector<Array3<T>>> coeffs(
+      new algn_vector<Array3<T>>());
+  coeffs->assign(GetCoefficientCount(order),
+                 Array3<T>(0.0, 0.0, 0.0));
 
-  Eigen::Array3f color;
+  Array3<T> color;
   for (int t = 0; t < env.height(); t++) {
     double theta = ImageYToTheta<double>(t, env.height());
     // The differential area of each pixel in the map is constant across a
@@ -772,36 +785,44 @@ std::unique_ptr<std::vector<Eigen::Array3f>> ProjectEnvironment(
 }
 
 template <typename T>
-std::unique_ptr<std::vector<T>> ProjectSparseSamples(
-    int order, const std::vector<Vector3<T>>& dirs, 
-    const std::vector<T>& values,
+void ProjectSparseSamples(
+    int order, const algn_vector<Vector3<T>>& dirs,
+    const algn_vector<T>& values,
+    algn_vector<T>* coeffs_out,
     SolverType solverType) {
   CHECK(order >= 0, "Order must be at least zero.");
   CHECK(dirs.size() == values.size(),
       "Directions and values must have the same size.");
+  CHECK(coeffs_out != nullptr,
+      "coeffs_out must not be null.");
 
   // Solve a linear least squares system Ax = b for the coefficients, x.
   // Each row in the matrix A are the values of the spherical harmonic basis
   // functions evaluated at that sample's direction (from @dirs). The
   // corresponding row in b is the value in @values.
-  std::unique_ptr<std::vector<T>> coeffs(new std::vector<T>());
-  coeffs->assign(GetCoefficientCount(order), 0.0);
+  coeffs_out->resize(GetCoefficientCount(order));
 
-  MatrixX<T> basis_values(dirs.size(), coeffs->size());
+  MatrixX<T> basis_values(dirs.size(), coeffs_out->size());
   Eigen::Map<VectorX<T>> func_values(const_cast<T*>(values.data()), dirs.size());
 
   T phi, theta;
+  int max_efficient_order = std::min(kEfficientOrderLimit, order);
+  algn_vector<T> efficient_sh(GetCoefficientCount(max_efficient_order));
   for (unsigned int i = 0; i < dirs.size(); i++) {
-    if(order > kHardCodedOrderLimit) {
+    if(order > kEfficientOrderLimit) {
       ToSphericalCoords(dirs[i], &phi, &theta);
     }
 
+    SHEval<T>[max_efficient_order](dirs[i][0], dirs[i][1], dirs[i][2],
+                                   efficient_sh.data());
+
     for (int l = 0; l <= order; l++) {
       for (int m = -l; m <= l; m++) {
-        if(l <= kHardCodedOrderLimit) {
-          basis_values(i, GetIndex(l, m)) = EvalSH<T,T>(l, m, dirs[i]);
+        int idx = GetIndex(l, m);
+        if(l <= kEfficientOrderLimit) {
+          basis_values(i, idx) = efficient_sh[idx];
         } else {
-          basis_values(i, GetIndex(l, m)) = EvalSH<T,T>(l, m, phi, theta);
+          basis_values(i, idx) = EvalSH<T,T>(l, m, phi, theta);
         }
       }
     }
@@ -853,53 +874,71 @@ std::unique_ptr<std::vector<T>> ProjectSparseSamples(
   }
 
   // Copy everything over to our coeffs array
-  for (unsigned int i = 0; i < coeffs->size(); i++) {
-    (*coeffs)[i] = soln(i);
+  for (unsigned int i = 0; i < coeffs_out->size(); i++) {
+    (*coeffs_out)[i] = soln(i);
   }
-  return coeffs;
 }
 
 template <typename T>
-std::unique_ptr<std::vector<T>> ProjectWeightedSparseSamples(
-    int order, const std::vector<Vector3<T>>& dirs, 
-    const std::vector<T>& values, const std::vector<T>& weights,
+std::unique_ptr<algn_vector<T>> ProjectSparseSamples(
+    int order, const algn_vector<Vector3<T>>& dirs, 
+    const algn_vector<T>& values,
+    SolverType solverType) {
+  algn_vector<T>* coeffs = new algn_vector<T>();
+  ProjectSparseSamples(order, dirs, values, coeffs, solverType);
+  return std::unique_ptr<algn_vector<T>>(coeffs);
+}
+
+template <typename T>
+void ProjectWeightedSparseSamples(
+    int order, const algn_vector<Vector3<T>>& dirs,
+    const algn_vector<T>& values, const algn_vector<T>& weights,
+    algn_vector<T>* coeffs_out,
     SolverType solverType) {
   CHECK(order >= 0, "Order must be at least zero.");
   CHECK(dirs.size() == values.size(),
       "Directions and values must have the same size.");
   CHECK(dirs.size() == weights.size(),
       "Directions and weights must have the same size.");
+  CHECK(coeffs_out != nullptr,
+      "coeffs_out must not be null.");
 
   // Solve a weighted linear least squares system W^(1/2)*Ax = W^(1/2)*b
   // for the coefficients, x. Each row in the matrix A are the values of the
   // spherical harmonic basis functions evaluated at that sample's direction
   // (from @dirs). The corresponding row in b is the value in @values.
-  std::unique_ptr<std::vector<T>> coeffs(new std::vector<T>());
-  coeffs->assign(GetCoefficientCount(order), 0.0);
+  coeffs_out->resize(GetCoefficientCount(order));
 
-  MatrixX<T> basis_values(dirs.size(), coeffs->size());
+  MatrixX<T> basis_values(dirs.size(), coeffs_out->size());
   Eigen::Map<VectorX<T>> func_values(const_cast<T*>(values.data()), dirs.size());
-  Eigen::Map<VectorX<T>> weight_values(const_cast<T*>(weights.data()), dirs.size());
+  VectorX<T> weight_values(dirs.size());
   Eigen::DiagonalMatrix<T, Eigen::Dynamic> W(dirs.size());
-  W.diagonal() = weight_values;
 
   T phi, theta;
+  int max_efficient_order = std::min(kEfficientOrderLimit, order);
+  algn_vector<T> efficient_sh(GetCoefficientCount(max_efficient_order));
   for (unsigned int i = 0; i < dirs.size(); i++) {
-    if(order > kHardCodedOrderLimit) {
+    weight_values(i) = sqrt(weights[i]);
+    if(order > kEfficientOrderLimit) {
       ToSphericalCoords(dirs[i], &phi, &theta);
     }
 
+    SHEval<T>[max_efficient_order](dirs[i][0], dirs[i][1], dirs[i][2],
+                                   efficient_sh.data());
+
     for (int l = 0; l <= order; l++) {
       for (int m = -l; m <= l; m++) {
-        if(l <= kHardCodedOrderLimit) {
-          basis_values(i, GetIndex(l, m)) = EvalSH<T,T>(l, m, dirs[i]);
+        int idx = GetIndex(l, m);
+        if(l <= kEfficientOrderLimit) {
+          basis_values(i, idx) = efficient_sh[idx];
         } else {
-          basis_values(i, GetIndex(l, m)) = EvalSH<T,T>(l, m, phi, theta);
+          basis_values(i, idx) = EvalSH<T,T>(l, m, phi, theta);
         }
       }
     }
   }
 
+  W.diagonal() = weight_values;
   MatrixX<T> weighed_basis_values = W * basis_values;
   VectorX<T> weighed_func_values = W * func_values;
 
@@ -949,17 +988,24 @@ std::unique_ptr<std::vector<T>> ProjectWeightedSparseSamples(
   }
 
   // Copy everything over to our coeffs array
-  for (unsigned int i = 0; i < coeffs->size(); i++) {
-    (*coeffs)[i] = soln(i);
+  for (unsigned int i = 0; i < coeffs_out->size(); i++) {
+    (*coeffs_out)[i] = soln(i);
   }
-  return coeffs;
+}
+
+template <typename T>
+std::unique_ptr<algn_vector<T>> ProjectWeightedSparseSamples(
+    int order, const algn_vector<Vector3<T>>& dirs, 
+    const algn_vector<T>& values, const algn_vector<T>& weights,
+    SolverType solverType) {
+  algn_vector<T>* coeffs = new algn_vector<T>();
+  ProjectWeightedSparseSamples(order, dirs, values,weights, coeffs, solverType);
+  return std::unique_ptr<algn_vector<T>>(coeffs);
 }
 
 template <typename T, typename S>
-T EvalSHSum(int order, const std::vector<T>& coeffs,
+T EvalSHSum(int order, const algn_vector<T>& coeffs,
             S phi, S theta) {
-  using SHType = typename std::conditional<
-      std::is_same<T, Eigen::Array3f>::value, float, T>::type;
   if (order <= kHardCodedOrderLimit) {
     // It is faster to compute the cartesian coordinates once
     return EvalSHSum<T,S>(order, coeffs, ToVector(phi, theta));
@@ -970,17 +1016,15 @@ T EvalSHSum(int order, const std::vector<T>& coeffs,
   T sum = Zero<T>();
   for (int l = 0; l <= order; l++) {
     for (int m = -l; m <= l; m++) {
-      sum += EvalSH<SHType,S>(l, m, phi, theta) * coeffs[GetIndex(l, m)];
+      sum += EvalSH<scalar_t<T>,S>(l, m, phi, theta) * coeffs[GetIndex(l, m)];
     }
   }
   return sum;
 }
 
 template <typename T, typename S>
-T EvalSHSum(int order, const std::vector<T>& coeffs, 
+T EvalSHSum(int order, const algn_vector<T>& coeffs, 
             const Vector3<S>& dir) {
-  using SHType = typename std::conditional<
-      std::is_same<T, Eigen::Array3f>::value, float, T>::type;
   if (order > kHardCodedOrderLimit) {
     // It is faster to switch to spherical coordinates
     S phi, theta;
@@ -996,7 +1040,7 @@ T EvalSHSum(int order, const std::vector<T>& coeffs,
   T sum = Zero<T>();
   for (int l = 0; l <= order; l++) {
     for (int m = -l; m <= l; m++) {
-      sum += EvalSH<SHType,S>(l, m, dir) * coeffs[GetIndex(l, m)];
+      sum += EvalSH<scalar_t<T>,S>(l, m, dir) * coeffs[GetIndex(l, m)];
     }
   }
   return sum;
@@ -1070,8 +1114,8 @@ std::unique_ptr<Rotation> Rotation::Create(int order,
 }
 
 template <typename T>
-void Rotation::Apply(const std::vector<T>& coeff,
-                     std::vector<T>* result) const {
+void Rotation::Apply(const algn_vector<T>& coeff,
+                     algn_vector<T>* result) const {
   CHECK(coeff.size() == GetCoefficientCount(order_),
         "Incorrect number of coefficients provided.");
 
@@ -1105,45 +1149,49 @@ void Rotation::Apply(const std::vector<T>& coeff,
   }
 }
 
-void RenderDiffuseIrradianceMap(const Image& env_map, Image* diffuse_out) {
-  std::unique_ptr<std::vector<Eigen::Array3f>>
+template <typename T>
+void RenderDiffuseIrradianceMap(const Image<T>& env_map,
+                                Image<T>* diffuse_out) {
+  std::unique_ptr<algn_vector<Array3<T>>>
       coeffs = ProjectEnvironment(kIrradianceOrder, env_map);
   RenderDiffuseIrradianceMap(*coeffs, diffuse_out);
 }
 
+template <typename T>
 void RenderDiffuseIrradianceMap(
-    const std::vector<Eigen::Array3f>& sh_coeffs,
-    Image* diffuse_out) {
+    const algn_vector<Array3<T>>& sh_coeffs,
+    Image<T>* diffuse_out) {
   for (int y = 0; y < diffuse_out->height(); y++) {
     double theta = ImageYToTheta<double>(y, diffuse_out->height());
     for (int x = 0; x < diffuse_out->width(); x++) {
       double phi = ImageXToPhi<double>(x, diffuse_out->width());
       Vector3<double> normal = ToVector(phi, theta);
-      Eigen::Array3f irradiance = RenderDiffuseIrradiance(sh_coeffs, normal);
+      Array3<T> irradiance = RenderDiffuseIrradiance(sh_coeffs, normal);
       diffuse_out->SetPixel(x, y, irradiance);
     }
   }
 }
 
-Eigen::Array3f RenderDiffuseIrradiance(
-    const std::vector<Eigen::Array3f>& sh_coeffs,
+template <typename T>
+Array3<T> RenderDiffuseIrradiance(
+    const algn_vector<Array3<T>>& sh_coeffs,
     const Eigen::Vector3d& normal) {
   // Optimization for if sh_coeffs is empty, then there is no environmental
   // illumination so irradiance is 0.0 regardless of the normal.
   if (sh_coeffs.empty()) {
-    return Eigen::Array3f(0.0, 0.0, 0.0);
+    return Array3<T>(0.0, 0.0, 0.0);
   }
 
   // Compute diffuse irradiance
   Eigen::Quaterniond rotation;
   rotation.setFromTwoVectors(Eigen::Vector3d::UnitZ(), normal).normalize();
 
-  std::vector<double> rotated_cos(kIrradianceCoeffCount);
+  algn_vector<double> rotated_cos(kIrradianceCoeffCount);
   std::unique_ptr<sh::Rotation> sh_rot(Rotation::Create(
       kIrradianceOrder, rotation));
   sh_rot->Apply(cosine_lobe<double>, &rotated_cos);
 
-  Eigen::Array3f sum(0.0, 0.0, 0.0);
+  Array3<T> sum(0.0, 0.0, 0.0);
   // The cosine lobe is 9 coefficients and after that all bands are assumed to
   // be 0. If sh_coeffs provides more than 9, they are irrelevant then. If it
   // provides fewer than 9, this assumes that the remaining coefficients would
@@ -1153,7 +1201,7 @@ Eigen::Array3f RenderDiffuseIrradiance(
     coeff_count = sh_coeffs.size();
   }
   for (unsigned int i = 0; i < coeff_count; i++) {
-    sum += rotated_cos[i] * sh_coeffs[i];
+    sum += static_cast<T>(rotated_cos[i]) * sh_coeffs[i];
   }
   return sum;
 }
@@ -1164,100 +1212,140 @@ template Vector2<double> ToImageCoords<double>(
 template Vector2<float> ToImageCoords<float>(
     float phi, float theta, int width, int height);
 
-template std::unique_ptr<std::vector<double>> ProjectFunction<double, double>(
+template std::unique_ptr<algn_vector<double>> ProjectFunction<double, double>(
     int order, const SphericalFunction<double, double>& func, int sample_count);
-template std::unique_ptr<std::vector<float>> ProjectFunction<float, float>(
+template std::unique_ptr<algn_vector<float>> ProjectFunction<float, float>(
     int order, const SphericalFunction<float, float>& func, int sample_count);
-template std::unique_ptr<std::vector<double>> ProjectFunction<double, float>(
+template std::unique_ptr<algn_vector<double>> ProjectFunction<double, float>(
     int order, const SphericalFunction<double, float>& func, int sample_count);
-template std::unique_ptr<std::vector<float>> ProjectFunction<float, double>(
+template std::unique_ptr<algn_vector<float>> ProjectFunction<float, double>(
     int order, const SphericalFunction<float, double>& func, int sample_count);
 
-template std::unique_ptr<std::vector<double>> ProjectSparseSamples<double>(
-    int order,
-    const std::vector<Vector3<double>>& dirs,
-    const std::vector<double>& values, SolverType solverType);
-template std::unique_ptr<std::vector<float>> ProjectSparseSamples<float>(
-    int order,
-    const std::vector<Vector3<float>>& dirs,
-    const std::vector<float>& values, SolverType solverType);
+template std::unique_ptr<algn_vector<Array3<double>>>
+    ProjectEnvironment(int order, const Image<double>& env);
+template std::unique_ptr<algn_vector<Array3<float>>>
+    ProjectEnvironment(int order, const Image<float>& env);
 
-template std::unique_ptr<std::vector<double>>
+template std::unique_ptr<algn_vector<double>> ProjectSparseSamples<double>(
+    int order,
+    const algn_vector<Vector3<double>>& dirs,
+    const algn_vector<double>& values, SolverType solverType);
+template std::unique_ptr<algn_vector<float>> ProjectSparseSamples<float>(
+    int order,
+    const algn_vector<Vector3<float>>& dirs,
+    const algn_vector<float>& values, SolverType solverType);
+
+template std::unique_ptr<algn_vector<double>>
     ProjectWeightedSparseSamples<double>(
       int order,
-      const std::vector<Vector3<double>>& dirs,
-      const std::vector<double>& values, const std::vector<double>& weights,
+      const algn_vector<Vector3<double>>& dirs,
+      const algn_vector<double>& values, const algn_vector<double>& weights,
       SolverType solverType);
-template std::unique_ptr<std::vector<float>>
+template std::unique_ptr<algn_vector<float>>
     ProjectWeightedSparseSamples<float>(
       int order,
-      const std::vector<Vector3<float>>& dirs,
-      const std::vector<float>& values, const std::vector<float>& weights,
+      const algn_vector<Vector3<float>>& dirs,
+      const algn_vector<float>& values, const algn_vector<float>& weights,
       SolverType solverType);
 
 template double EvalSHSum<double, double>(
     int order,
-    const std::vector<double>& coeffs,
+    const algn_vector<double>& coeffs,
     double phi, double theta);
 template float EvalSHSum<float, float>(
     int order,
-    const std::vector<float>& coeffs,
+    const algn_vector<float>& coeffs,
     float phi, float theta);
 template double EvalSHSum<double, float>(
     int order,
-    const std::vector<double>& coeffs,
+    const algn_vector<double>& coeffs,
     float phi, float theta);
 template float EvalSHSum<float, double>(
     int order,
-    const std::vector<float>& coeffs,
+    const algn_vector<float>& coeffs,
     double phi, double theta);
 
+template Eigen::Array3d EvalSHSum<Eigen::Array3d, double>(
+    int order,
+    const algn_vector<Eigen::Array3d>& coeffs,
+    double phi, double theta);
+template Eigen::Array3d EvalSHSum<Eigen::Array3d, float>(
+    int order,
+    const algn_vector<Eigen::Array3d>& coeffs,
+    float phi, float theta);
 template Eigen::Array3f EvalSHSum<Eigen::Array3f, double>(
     int order,
-    const std::vector<Eigen::Array3f>& coeffs,
+    const algn_vector<Eigen::Array3f>& coeffs,
     double phi, double theta);
 template Eigen::Array3f EvalSHSum<Eigen::Array3f, float>(
     int order,
-    const std::vector<Eigen::Array3f>& coeffs,
+    const algn_vector<Eigen::Array3f>& coeffs,
     float phi, float theta);
 
 template double EvalSHSum<double, double>(
-    int order, const std::vector<double>& coeffs,
+    int order, const algn_vector<double>& coeffs,
     const Vector3<double>& dir);
 template float EvalSHSum<float, float>(
-    int order, const std::vector<float>& coeffs,
+    int order, const algn_vector<float>& coeffs,
     const Vector3<float>& dir);
 template double EvalSHSum<double, float>(
-    int order, const std::vector<double>& coeffs,
+    int order, const algn_vector<double>& coeffs,
     const Vector3<float>& dir);
 template float EvalSHSum<float, double>(
-    int order, const std::vector<float>& coeffs,
+    int order, const algn_vector<float>& coeffs,
     const Vector3<double>& dir);
 
+template Eigen::Array3d EvalSHSum<Eigen::Array3d, double>(
+    int order,
+    const algn_vector<Eigen::Array3d>& coeffs,
+    const Vector3<double>& dir);
+template Eigen::Array3d EvalSHSum<Eigen::Array3d, float>(
+    int order,
+    const algn_vector<Eigen::Array3d>& coeffs,
+    const Vector3<float>& dir);
 template Eigen::Array3f EvalSHSum<Eigen::Array3f, double>(
     int order,
-    const std::vector<Eigen::Array3f>& coeffs,
+    const algn_vector<Eigen::Array3f>& coeffs,
     const Vector3<double>& dir);
 template Eigen::Array3f EvalSHSum<Eigen::Array3f, float>(
     int order,
-    const std::vector<Eigen::Array3f>& coeffs,
+    const algn_vector<Eigen::Array3f>& coeffs,
     const Vector3<float>& dir);
 
+template void RenderDiffuseIrradianceMap(const Image<double>& env_map, 
+                                         Image<double>* diffuse_out);
+template void RenderDiffuseIrradianceMap(const Image<float>& env_map, 
+                                         Image<float>* diffuse_out);
+
+template void RenderDiffuseIrradianceMap(
+    const algn_vector<Array3<double>>& sh_coeffs,
+    Image<double>* diffuse_out);
+template void RenderDiffuseIrradianceMap(
+    const algn_vector<Array3<float>>& sh_coeffs,
+    Image<float>* diffuse_out);
+
+template Array3<double> RenderDiffuseIrradiance(
+    const algn_vector<Array3<double>>& sh_coeffs,
+    const Eigen::Vector3d& normal);
+template Array3<float> RenderDiffuseIrradiance(
+    const algn_vector<Array3<float>>& sh_coeffs,
+    const Eigen::Vector3d& normal);
+
 template void Rotation::Apply<double>(
-    const std::vector<double>& coeff,
-    std::vector<double>* result) const;
+    const algn_vector<double>& coeff,
+    algn_vector<double>* result) const;
 template void Rotation::Apply<float>(
-    const std::vector<float>& coeff,
-    std::vector<float>* result) const;
+    const algn_vector<float>& coeff,
+    algn_vector<float>* result) const;
 
 // The generic implementation for Rotate doesn't handle aggregate types
 // like Array3f so split it apart, use the generic version and then recombine
 // them into the final result.
 template <> void Rotation::Apply<Eigen::Array3f>(
-    const std::vector<Eigen::Array3f>& coeff,
-    std::vector<Eigen::Array3f>* result) const {
+    const algn_vector<Eigen::Array3f>& coeff,
+    algn_vector<Eigen::Array3f>* result) const {
   // Separate the Array3f coefficients into three vectors.
-  std::vector<float> c1, c2, c3;
+  algn_vector<float> c1, c2, c3;
   for (unsigned int i = 0; i < coeff.size(); i++) {
     const Eigen::Array3f& c = coeff[i];
     c1.push_back(c(0));
@@ -1274,6 +1362,30 @@ template <> void Rotation::Apply<Eigen::Array3f>(
   result->assign(GetCoefficientCount(order_), Eigen::Array3f::Zero());
   for (unsigned int i = 0; i < result->size(); i++) {
     (*result)[i] = Eigen::Array3f(c1[i], c2[i], c3[i]);
+  }
+}
+
+template <> void Rotation::Apply<Eigen::Array3d>(
+    const algn_vector<Eigen::Array3d>& coeff,
+    algn_vector<Eigen::Array3d>* result) const {
+  // Separate the Array3d coefficients into three vectors.
+  algn_vector<double> c1, c2, c3;
+  for (unsigned int i = 0; i < coeff.size(); i++) {
+    const Eigen::Array3d& c = coeff[i];
+    c1.push_back(c(0));
+    c2.push_back(c(1));
+    c3.push_back(c(2));
+  }
+
+  // Compute the rotation in place
+  Apply(c1, &c1);
+  Apply(c2, &c2);
+  Apply(c3, &c3);
+
+  // Coellesce back into Array3f
+  result->assign(GetCoefficientCount(order_), Eigen::Array3d::Zero());
+  for (unsigned int i = 0; i < result->size(); i++) {
+    (*result)[i] = Eigen::Array3d(c1[i], c2[i], c3[i]);
   }
 }
 
