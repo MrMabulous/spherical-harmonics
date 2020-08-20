@@ -25,6 +25,7 @@ cc_library(
     deps = [
         ":image",
         "@eigen3//:eigen3",
+        "@mabu_trace//:mabu_trace",
     ],
     #copts = [
     #    "/arch:AVX2",
@@ -60,6 +61,7 @@ cc_test(
         ":default_image",
         ":spherical_harmonics",
         "@gtest//:main",
+        "@mabu_trace//:mabu_trace",
     ],
     #copts = [
     #    "/arch:AVX2",
@@ -82,7 +84,9 @@ cc_test(
     deps = [
         ":spherical_harmonics",
         "@gtest//:main",
+        "@mabu_trace//:mabu_trace",
     ],
+    copts = ["/std:c++17 /Zc:__cplusplus"],
     #copts = [
     #    "/arch:AVX2",
     #    "/D__SSE__",

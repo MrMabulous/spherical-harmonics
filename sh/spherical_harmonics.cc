@@ -15,6 +15,8 @@
 #include "sh/efficient_sh_evaluation.h"
 #include "sh/spherical_harmonics.h"
 
+#include "mabutrace.h"
+
 #include <iostream>
 #include <limits>
 #include <random>
@@ -790,6 +792,7 @@ void ProjectSparseSamples(
     const algn_vector<T>& values,
     algn_vector<T>* coeffs_out,
     SolverType solverType) {
+  TRACE_SCOPE("ProjectSparseSamples()");
   CHECK(order >= 0, "Order must be at least zero.");
   CHECK(dirs.size() == values.size(),
       "Directions and values must have the same size.");
@@ -832,6 +835,8 @@ void ProjectSparseSamples(
   // functions that best match the data
   VectorX<T> soln;
   MatrixX<T> t;
+  {
+    TRACE_SCOPE("Solve LS");
   switch(solverType) {
     case SolverType::kJacobiSVD:
       soln = basis_values.jacobiSvd(
@@ -871,6 +876,7 @@ void ProjectSparseSamples(
       break;
     default:
       CHECK(false, "Invalid SolverType.");
+  }
   }
 
   // Copy everything over to our coeffs array
@@ -1026,6 +1032,7 @@ template <typename T, typename S>
 T EvalSHSum(int order, const algn_vector<T>& coeffs, 
             const Vector3<S>& dir) {
   if (order > kHardCodedOrderLimit) {
+    
     // It is faster to switch to spherical coordinates
     S phi, theta;
     ToSphericalCoords(dir, &phi, &theta);
