@@ -1394,6 +1394,21 @@ template std::unique_ptr<algn_vector<float>>
       const algn_vector<float>& values, const algn_vector<float>& weights,
       SolverType solverType);
 
+template void ProjectWeightedSparseSampleStream<double>(
+    int order, int num_problems, const algn_vector<Vector3<double>>& dirs,
+    const algn_vector<double>& r_values, const algn_vector<double>& g_values,
+    const algn_vector<double>& b_values, const algn_vector<double>& weights,
+    const algn_vector<size_t>& index_array, const algn_vector<size_t>& num_values_array,
+    algn_vector<double>* r_coeffs_out, algn_vector<double>* g_coeffs_out,
+    algn_vector<double>* b_coeffs_out, SolverType solverType);
+template void ProjectWeightedSparseSampleStream<float>(
+    int order, int num_problems, const algn_vector<Vector3<float>>& dirs,
+    const algn_vector<float>& r_values, const algn_vector<float>& g_values,
+    const algn_vector<float>& b_values, const algn_vector<float>& weights,
+    const algn_vector<size_t>& index_array, const algn_vector<size_t>& num_values_array,
+    algn_vector<float>* r_coeffs_out, algn_vector<float>* g_coeffs_out,
+    algn_vector<float>* b_coeffs_out, SolverType solverType);
+
 template double EvalSHSum<double, double>(
     int order,
     const algn_vector<double>& coeffs,
