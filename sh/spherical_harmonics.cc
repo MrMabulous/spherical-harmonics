@@ -1097,6 +1097,7 @@ void ProjectWeightedSparseSampleStream(
         break;
       default:
         // transpose and t * weighed_basis_values not needed
+        break;
     }
 
     // iterate over three color channels
