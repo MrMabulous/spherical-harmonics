@@ -1003,6 +1003,143 @@ std::unique_ptr<algn_vector<T>> ProjectWeightedSparseSamples(
   return std::unique_ptr<algn_vector<T>>(coeffs);
 }
 
+template <typename T>
+void ProjectWeightedSparseSampleStream(
+    int order, int num_problems, const algn_vector<Vector3<T>>& dirs,
+    const algn_vector<T>& r_values, const algn_vector<T>& g_values,
+    const algn_vector<T>& b_values, const algn_vector<T>& weights,
+    const algn_vector<size_t>& index_array, const algn_vector<size_t>& num_values_array,
+    algn_vector<T>* r_coeffs_out, algn_vector<T>* g_coeffs_out,
+    algn_vector<T>* b_coeffs_out) {
+  CHECK(order >= 0, "Order must be at least zero.");
+  CHECK(dirs.size() == r_values.size(),
+      "Directions and r_values must have the same size.");
+  CHECK(dirs.size() == g_values.size(),
+      "Directions and g_values must have the same size.");
+  CHECK(dirs.size() == b_values.size(),
+      "Directions and b_values must have the same size.");
+  CHECK(r_coeffs_out != nullptr,
+      "r_coeffs_out must not be null.");
+  CHECK(g_coeffs_out != nullptr,
+      "g_coeffs_out must not be null.");
+  CHECK(b_coeffs_out != nullptr,
+      "b_coeffs_out must not be null.");
+  CHECK(num_problems == num_values_array.size(),
+      "num_problems must equal the size of num_values_array.");
+  CHECK(order <= kEfficientOrderLimit,
+      "order must be smaller.");
+
+  const size_t num_coeffs = GetCoefficientCount(order);
+
+  // Solve weighted linear least squares systems W^(1/2)*Ax = W^(1/2)*b
+  // for the coefficients, x. Each row in the matrix A are the values of the
+  // spherical harmonic basis functions evaluated at that sample's direction
+  // (from @dirs). The corresponding row in b is the value in @values.
+  r_coeffs_out->resize(num_coeffs * num_problems);
+  g_coeffs_out->resize(num_coeffs * num_problems);
+  b_coeffs_out->resize(num_coeffs * num_problems);
+
+  algn_vector<T>* coeffs_out[3];
+  coeffs_out[0] = r_coeffs_out;
+  coeffs_out[1] = g_coeffs_out;
+  coeffs_out[2] = b_coeffs_out;
+
+  // precompute spherical harmonics coefficients for each dir.
+  algn_vector<algn_vector<T>> sh_per_dir;
+  sh_per_dir.resize(dirs.size());
+  for(int d=0; d<dirs.size(); d++) {
+    sh_per_dir[d].resize(num_coeffs);
+    SHEval<T>[order](dirs[d][0], dirs[d][1], dirs[d][2], sh_per_dir[d].data());
+  }
+
+  size_t array_ofst = 0;
+  for(int p = 0; p < num_problems; p++) {
+    size_t num_problem_values = num_values_array[p];
+    MatrixX<T> weighed_basis_values(num_problem_values, num_coeffs);
+    VectorX<T> weighed_func_values[3];
+    weighed_func_values[0].resize(num_problem_values);
+    weighed_func_values[1].resize(num_problem_values);
+    weighed_func_values[2].resize(num_problem_values);
+
+    for (unsigned int i = 0; i < num_problem_values; i++) {
+      T weight = sqrt(weights[array_ofst + i]);
+      size_t dir_value_idx = index_array[array_ofst + i];
+      weighed_func_values[0](i) = weight * r_values[dir_value_idx];
+      weighed_func_values[1](i) = weight * g_values[dir_value_idx];
+      weighed_func_values[2](i) = weight * b_values[dir_value_idx];
+      for (int l = 0; l <= order; l++) {
+        for (int m = -l; m <= l; m++) {
+          int sh_idx = GetIndex(l, m);
+          weighed_basis_values(i, sh_idx) = weight * sh_per_dir[dir_value_idx][sh_idx];
+        }
+      }
+    }
+
+    // Find the least squares fit for the coefficients of the basis
+    // functions that best match the data
+    VectorX<T> soln;
+    MatrixX<T> t;
+    MatrixX<T> t_times_weighed_basis_values;
+    switch(solverType) {
+      case SolverType::kLDLT:
+      case SolverType::kLLT:
+      case SolverType::kPartialPivLU:
+      case SolverType::kFullPivLU:
+        t = weighed_basis_values.transpose();
+        t_times_weighed_basis_values = t * weighed_basis_values;
+        break;
+      default:
+        // transpose and t * weighed_basis_values not needed
+    }
+
+    // iterate over three color channels
+    for (int c=0; c<3; c++) {
+      switch(solverType) {
+        case SolverType::kJacobiSVD:
+          soln = weighed_basis_values.jacobiSvd(
+              Eigen::ComputeThinU | Eigen::ComputeThinV).solve(weighed_func_values[c]);
+          break;
+        case SolverType::kBdcsSVD:
+          soln = weighed_basis_values.bdcSvd(
+              Eigen::ComputeThinU | Eigen::ComputeThinV).solve(weighed_func_values[c]);
+          break;
+        case SolverType::kHouseholderQR:
+          soln = weighed_basis_values.householderQr().solve(weighed_func_values[c]);
+          break;
+        case SolverType::kColPivHouseholderQR:
+          soln = weighed_basis_values.colPivHouseholderQr().solve(weighed_func_values[c]);
+          break;
+        case SolverType::kFullPivHouseholderQR:
+          soln = weighed_basis_values.fullPivHouseholderQr().solve(weighed_func_values[c]);
+          break;
+        case SolverType::kLDLT:
+          soln = t_times_weighed_basis_values.ldlt().solve(t * weighed_func_values[c]);
+          break;
+        case SolverType::kLLT:
+          soln = t_times_weighed_basis_values.llt().solve(t * weighed_func_values[c]);
+          break;
+        case SolverType::kCompleteOrthogonalDecomposition:
+          soln = weighed_basis_values.completeOrthogonalDecomposition().solve(
+                 weighed_func_values[c]);
+          break;
+        case SolverType::kPartialPivLU:
+          soln = t_times_weighed_basis_values.partialPivLu().solve(t * weighed_func_values[c]);
+          break;
+        case SolverType::kFullPivLU:
+          soln = t_times_weighed_basis_values.fullPivLu().solve(t * weighed_func_values[c]);
+          break;
+        default:
+          CHECK(false, "Invalid SolverType.");
+      }
+      // Copy everything over to our coeffs array
+      for (unsigned int i = 0; i < num_coeffs; i++) {
+        (*(coeffs_out[c]))[p * num_coeffs + i] = soln(i);
+      }
+    }
+    array_ofst += num_problem_values;
+  }
+}
+
 template <typename T, typename S>
 T EvalSHSum(int order, const algn_vector<T>& coeffs,
             S phi, S theta) {

@@ -231,6 +231,16 @@ void ProjectWeightedSparseSamples(
     algn_vector<T>* coeffs_out,
     SolverType solverType = SolverType::kJacobiSVD);
 
+// Stream version of ProjectWeightedSparseSamples, for 3 color channels.
+template <typename T>
+void ProjectWeightedSparseSampleStream(
+    int order, int num_problems, const algn_vector<Vector3<T>>& dirs,
+    const algn_vector<T>& r_values, const algn_vector<T>& g_values,
+    const algn_vector<T>& b_values, const algn_vector<T>& weights,
+    const algn_vector<size_t>& index_array, const algn_vector<size_t>& num_values_array,
+    algn_vector<T>* r_coeffs_out, algn_vector<T>* g_coeffs_out,
+    algn_vector<T>* b_coeffs_out, SolverType solverType = SolverType::kJacobiSVD);
+
 // Evaluate the already computed coefficients for the SH basis functions up
 // to @order, at the coordinates @phi and @theta. The length of the @coeffs
 // vector must be equal to GetCoefficientCount(order).
