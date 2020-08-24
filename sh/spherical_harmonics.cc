@@ -1104,7 +1104,7 @@ void ProjectWeightedSparseSampleStream(
     {
       TRACE_SCOPE("solving");
       switch(solverType) {
-        case SolverType::kJacobiSVD:
+        case SolverType::kJacobiSVD: {
           auto solver = weighed_basis_values.jacobiSvd(Eigen::ComputeThinU | Eigen::ComputeThinV);
           for (int c=0; c<3; c++) {
             soln = solver.solve(weighed_func_values[c]);
@@ -1114,7 +1114,8 @@ void ProjectWeightedSparseSampleStream(
             }
           }
           break;
-        case SolverType::kBdcsSVD:
+        }
+        case SolverType::kBdcsSVD: {
           auto solver = weighed_basis_values.bdcSvd(Eigen::ComputeThinU | Eigen::ComputeThinV);
           for (int c=0; c<3; c++) {
             soln = solver.solve(weighed_func_values[c]);
@@ -1124,7 +1125,8 @@ void ProjectWeightedSparseSampleStream(
             }
           }
           break;
-        case SolverType::kHouseholderQR:
+        }
+        case SolverType::kHouseholderQR: {
           auto solver = weighed_basis_values.householderQr();
           for (int c=0; c<3; c++) {
             soln = solver.solve(weighed_func_values[c]);
@@ -1134,7 +1136,8 @@ void ProjectWeightedSparseSampleStream(
             }
           }
           break;
-        case SolverType::kColPivHouseholderQR:
+        }
+        case SolverType::kColPivHouseholderQR: {
           auto solver = weighed_basis_values.colPivHouseholderQr();
           for (int c=0; c<3; c++) {
             soln = solver.solve(weighed_func_values[c]);
@@ -1144,7 +1147,8 @@ void ProjectWeightedSparseSampleStream(
             }
           }
           break;
-        case SolverType::kFullPivHouseholderQR:
+        }
+        case SolverType::kFullPivHouseholderQR: {
           auto solver = weighed_basis_values.fullPivHouseholderQr();
           for (int c=0; c<3; c++) {
             soln = solver.solve(weighed_func_values[c]);
@@ -1154,7 +1158,8 @@ void ProjectWeightedSparseSampleStream(
             }
           }
           break;
-        case SolverType::kLDLT:
+        }
+        case SolverType::kLDLT: {
           auto solver = t_times_weighed_basis_values.ldlt();
           for (int c=0; c<3; c++) {
             soln = solver.solve(t * weighed_func_values[c]);
@@ -1164,7 +1169,8 @@ void ProjectWeightedSparseSampleStream(
             }
           }
           break;
-        case SolverType::kLLT:
+        }
+        case SolverType::kLLT: {
           auto solver = t_times_weighed_basis_values.llt();
           for (int c=0; c<3; c++) {
             soln = solver.solve(t * weighed_func_values[c]);
@@ -1174,7 +1180,8 @@ void ProjectWeightedSparseSampleStream(
             }
           }
           break;
-        case SolverType::kCompleteOrthogonalDecomposition:
+        }
+        case SolverType::kCompleteOrthogonalDecomposition: {
           auto solver = weighed_basis_values.completeOrthogonalDecomposition();
           for (int c=0; c<3; c++) {
             soln = solver.solve(weighed_func_values[c]);
@@ -1184,7 +1191,8 @@ void ProjectWeightedSparseSampleStream(
             }
           }
           break;
-        case SolverType::kPartialPivLU:
+        }
+        case SolverType::kPartialPivLU: {
           auto solver = t_times_weighed_basis_values.partialPivLu();
           for (int c=0; c<3; c++) {
             soln = solver.solve(t * weighed_func_values[c]);
@@ -1194,7 +1202,8 @@ void ProjectWeightedSparseSampleStream(
             }
           }
           break;
-        case SolverType::kFullPivLU:
+        }
+        case SolverType::kFullPivLU: {
           auto solver = t_times_weighed_basis_values.fullPivLu();
           for (int c=0; c<3; c++) {
             soln = solver.solve(t * weighed_func_values[c]);
@@ -1204,9 +1213,11 @@ void ProjectWeightedSparseSampleStream(
             }
           }
           break;
-        default:
+        }
+        default: {
           CHECK(false, "Invalid SolverType.");
           break;
+        }
       }
     }
     array_ofst += num_problem_values;
