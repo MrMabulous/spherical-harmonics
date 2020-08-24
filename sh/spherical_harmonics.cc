@@ -839,40 +839,40 @@ void ProjectSparseSamples(
     TRACE_SCOPE("Solve LS");
   switch(solverType) {
     case SolverType::kJacobiSVD:
-      soln = basis_values.jacobiSvd(
+      soln.noalias() = basis_values.jacobiSvd(
           Eigen::ComputeThinU | Eigen::ComputeThinV).solve(func_values);
       break;
     case SolverType::kBdcsSVD:
-      soln = basis_values.bdcSvd(
+      soln.noalias() = basis_values.bdcSvd(
           Eigen::ComputeThinU | Eigen::ComputeThinV).solve(func_values);
       break;
     case SolverType::kHouseholderQR:
-      soln = basis_values.householderQr().solve(func_values);
+      soln.noalias() = basis_values.householderQr().solve(func_values);
       break;
     case SolverType::kColPivHouseholderQR:
-      soln = basis_values.colPivHouseholderQr().solve(func_values);
+      soln.noalias() = basis_values.colPivHouseholderQr().solve(func_values);
       break;
     case SolverType::kFullPivHouseholderQR:
-      soln = basis_values.fullPivHouseholderQr().solve(func_values);
+      soln.noalias() = basis_values.fullPivHouseholderQr().solve(func_values);
       break;
     case SolverType::kLDLT:
       t = basis_values.transpose();
-      soln = (t * basis_values).ldlt().solve(t * func_values);
+      soln.noalias() = (t * basis_values).ldlt().solve(t * func_values);
       break;
     case SolverType::kLLT:
       t = basis_values.transpose();
-      soln = (t * basis_values).llt().solve(t * func_values);
+      soln.noalias() = (t * basis_values).llt().solve(t * func_values);
       break;
     case SolverType::kCompleteOrthogonalDecomposition:
-      soln = basis_values.completeOrthogonalDecomposition().solve(func_values);
+      soln.noalias() = basis_values.completeOrthogonalDecomposition().solve(func_values);
       break;
     case SolverType::kPartialPivLU:
       t = basis_values.transpose();
-      soln = (t * basis_values).partialPivLu().solve(t * func_values);
+      soln.noalias() = (t * basis_values).partialPivLu().solve(t * func_values);
       break;
     case SolverType::kFullPivLU:
       t = basis_values.transpose();
-      soln = (t * basis_values).fullPivLu().solve(t * func_values);
+      soln.noalias() = (t * basis_values).fullPivLu().solve(t * func_values);
       break;
     default:
       CHECK(false, "Invalid SolverType.");
@@ -954,40 +954,40 @@ void ProjectWeightedSparseSamples(
   MatrixX<T> t;
   switch(solverType) {
     case SolverType::kJacobiSVD:
-      soln = weighed_basis_values.jacobiSvd(
+      soln.noalias() = weighed_basis_values.jacobiSvd(
           Eigen::ComputeThinU | Eigen::ComputeThinV).solve(weighed_func_values);
       break;
     case SolverType::kBdcsSVD:
-      soln = weighed_basis_values.bdcSvd(
+      soln.noalias() = weighed_basis_values.bdcSvd(
           Eigen::ComputeThinU | Eigen::ComputeThinV).solve(weighed_func_values);
       break;
     case SolverType::kHouseholderQR:
-      soln = weighed_basis_values.householderQr().solve(weighed_func_values);
+      soln.noalias() = weighed_basis_values.householderQr().solve(weighed_func_values);
       break;
     case SolverType::kColPivHouseholderQR:
-      soln = weighed_basis_values.colPivHouseholderQr().solve(weighed_func_values);
+      soln.noalias() = weighed_basis_values.colPivHouseholderQr().solve(weighed_func_values);
       break;
     case SolverType::kFullPivHouseholderQR:
-      soln = weighed_basis_values.fullPivHouseholderQr().solve(weighed_func_values);
+      soln.noalias() = weighed_basis_values.fullPivHouseholderQr().solve(weighed_func_values);
       break;
     case SolverType::kLDLT:
       t = weighed_basis_values.transpose();
-      soln = (t * weighed_basis_values).ldlt().solve(t * weighed_func_values);
+      soln.noalias() = (t * weighed_basis_values).ldlt().solve(t * weighed_func_values);
       break;
     case SolverType::kLLT:
       t = weighed_basis_values.transpose();
-      soln = (t * weighed_basis_values).llt().solve(t * weighed_func_values);
+      soln.noalias() = (t * weighed_basis_values).llt().solve(t * weighed_func_values);
       break;
     case SolverType::kCompleteOrthogonalDecomposition:
-      soln = weighed_basis_values.completeOrthogonalDecomposition().solve(weighed_func_values);
+      soln.noalias() = weighed_basis_values.completeOrthogonalDecomposition().solve(weighed_func_values);
       break;
     case SolverType::kPartialPivLU:
       t = weighed_basis_values.transpose();
-      soln = (t * weighed_basis_values).partialPivLu().solve(t * weighed_func_values);
+      soln.noalias() = (t * weighed_basis_values).partialPivLu().solve(t * weighed_func_values);
       break;
     case SolverType::kFullPivLU:
       t = weighed_basis_values.transpose();
-      soln = (t * weighed_basis_values).fullPivLu().solve(t * weighed_func_values);
+      soln.noalias() = (t * weighed_basis_values).fullPivLu().solve(t * weighed_func_values);
       break;
     default:
       CHECK(false, "Invalid SolverType.");
@@ -1072,6 +1072,7 @@ void ProjectWeightedSparseSampleStream(
   algn_vector<T> transposed_data(largest_problem * num_coeffs);
 
   VectorX<T> soln(num_coeffs);
+  VectorX<T> t_times_func_values(num_coeffs);
   MatrixX<T> t_times_weighed_basis_values(num_coeffs, num_coeffs);
 
   size_t array_ofst = 0;
@@ -1114,8 +1115,8 @@ void ProjectWeightedSparseSampleStream(
       case SolverType::kLLT:
       case SolverType::kPartialPivLU:
       case SolverType::kFullPivLU:
-        t = weighed_basis_values.transpose();
-        t_times_weighed_basis_values = t * weighed_basis_values;
+        t.noalias() = weighed_basis_values.transpose();
+        t_times_weighed_basis_values.noalias() = t * weighed_basis_values;
         break;
       default:
         // transpose and t * weighed_basis_values not needed
@@ -1129,7 +1130,7 @@ void ProjectWeightedSparseSampleStream(
         case SolverType::kJacobiSVD: {
           auto solver = weighed_basis_values.jacobiSvd(Eigen::ComputeThinU | Eigen::ComputeThinV);
           for (int c=0; c<3; c++) {
-            soln = solver.solve((*weighed_func_values)[c]);
+            soln.noalias() = solver.solve((*weighed_func_values)[c]);
             // Copy everything over to our coeffs array
             for (unsigned int i = 0; i < num_coeffs; i++) {
               (*(coeffs_out[c]))[p * num_coeffs + i] = soln(i);
@@ -1140,7 +1141,7 @@ void ProjectWeightedSparseSampleStream(
         case SolverType::kBdcsSVD: {
           auto solver = weighed_basis_values.bdcSvd(Eigen::ComputeThinU | Eigen::ComputeThinV);
           for (int c=0; c<3; c++) {
-            soln = solver.solve((*weighed_func_values)[c]);
+            soln.noalias() = solver.solve((*weighed_func_values)[c]);
             // Copy everything over to our coeffs array
             for (unsigned int i = 0; i < num_coeffs; i++) {
               (*(coeffs_out[c]))[p * num_coeffs + i] = soln(i);
@@ -1151,7 +1152,7 @@ void ProjectWeightedSparseSampleStream(
         case SolverType::kHouseholderQR: {
           auto solver = weighed_basis_values.householderQr();
           for (int c=0; c<3; c++) {
-            soln = solver.solve((*weighed_func_values)[c]);
+            soln.noalias() = solver.solve((*weighed_func_values)[c]);
             // Copy everything over to our coeffs array
             for (unsigned int i = 0; i < num_coeffs; i++) {
               (*(coeffs_out[c]))[p * num_coeffs + i] = soln(i);
@@ -1162,7 +1163,7 @@ void ProjectWeightedSparseSampleStream(
         case SolverType::kColPivHouseholderQR: {
           auto solver = weighed_basis_values.colPivHouseholderQr();
           for (int c=0; c<3; c++) {
-            soln = solver.solve((*weighed_func_values)[c]);
+            soln.noalias() = solver.solve((*weighed_func_values)[c]);
             // Copy everything over to our coeffs array
             for (unsigned int i = 0; i < num_coeffs; i++) {
               (*(coeffs_out[c]))[p * num_coeffs + i] = soln(i);
@@ -1173,7 +1174,7 @@ void ProjectWeightedSparseSampleStream(
         case SolverType::kFullPivHouseholderQR: {
           auto solver = weighed_basis_values.fullPivHouseholderQr();
           for (int c=0; c<3; c++) {
-            soln = solver.solve((*weighed_func_values)[c]);
+            soln.noalias() = solver.solve((*weighed_func_values)[c]);
             // Copy everything over to our coeffs array
             for (unsigned int i = 0; i < num_coeffs; i++) {
               (*(coeffs_out[c]))[p * num_coeffs + i] = soln(i);
@@ -1184,7 +1185,8 @@ void ProjectWeightedSparseSampleStream(
         case SolverType::kLDLT: {
           auto solver = t_times_weighed_basis_values.ldlt();
           for (int c=0; c<3; c++) {
-            soln = solver.solve(t * (*weighed_func_values)[c]);
+            t_times_func_values.noalias() = t * (*weighed_func_values)[c];
+            soln.noalias() = solver.solve(t_times_func_values);
             // Copy everything over to our coeffs array
             for (unsigned int i = 0; i < num_coeffs; i++) {
               (*(coeffs_out[c]))[p * num_coeffs + i] = soln(i);
@@ -1195,7 +1197,8 @@ void ProjectWeightedSparseSampleStream(
         case SolverType::kLLT: {
           auto solver = t_times_weighed_basis_values.llt();
           for (int c=0; c<3; c++) {
-            soln = solver.solve(t * (*weighed_func_values)[c]);
+            t_times_func_values.noalias() = t * (*weighed_func_values)[c];
+            soln.noalias() = solver.solve(t_times_func_values);
             // Copy everything over to our coeffs array
             for (unsigned int i = 0; i < num_coeffs; i++) {
               (*(coeffs_out[c]))[p * num_coeffs + i] = soln(i);
@@ -1206,7 +1209,7 @@ void ProjectWeightedSparseSampleStream(
         case SolverType::kCompleteOrthogonalDecomposition: {
           auto solver = weighed_basis_values.completeOrthogonalDecomposition();
           for (int c=0; c<3; c++) {
-            soln = solver.solve((*weighed_func_values)[c]);
+            soln.noalias() = solver.solve((*weighed_func_values)[c]);
             // Copy everything over to our coeffs array
             for (unsigned int i = 0; i < num_coeffs; i++) {
               (*(coeffs_out[c]))[p * num_coeffs + i] = soln(i);
@@ -1217,7 +1220,8 @@ void ProjectWeightedSparseSampleStream(
         case SolverType::kPartialPivLU: {
           auto solver = t_times_weighed_basis_values.partialPivLu();
           for (int c=0; c<3; c++) {
-            soln = solver.solve(t * (*weighed_func_values)[c]);
+            t_times_func_values.noalias() = t * (*weighed_func_values)[c];
+            soln.noalias() = solver.solve(t_times_func_values);
             // Copy everything over to our coeffs array
             for (unsigned int i = 0; i < num_coeffs; i++) {
               (*(coeffs_out[c]))[p * num_coeffs + i] = soln(i);
@@ -1228,7 +1232,8 @@ void ProjectWeightedSparseSampleStream(
         case SolverType::kFullPivLU: {
           auto solver = t_times_weighed_basis_values.fullPivLu();
           for (int c=0; c<3; c++) {
-            soln = solver.solve(t * (*weighed_func_values)[c]);
+            t_times_func_values.noalias() = t * (*weighed_func_values)[c];
+            soln.noalias() = solver.solve(t_times_func_values);
             // Copy everything over to our coeffs array
             for (unsigned int i = 0; i < num_coeffs; i++) {
               (*(coeffs_out[c]))[p * num_coeffs + i] = soln(i);
