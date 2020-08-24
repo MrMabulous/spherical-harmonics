@@ -1016,7 +1016,7 @@ void ProjectWeightedSparseSampleStream(
     const algn_vector<T>& b_values, const algn_vector<T>& weights,
     const algn_vector<size_t>& index_array, const algn_vector<size_t>& num_values_array,
     algn_vector<T>* r_coeffs_out, algn_vector<T>* g_coeffs_out,
-    algn_vector<T>* b_coeffs_out) {
+    algn_vector<T>* b_coeffs_out, SolverType solverType) {
   TRACE_SCOPE("ProjectWeightedSparseSampleStream()");
   CHECK(order >= 0, "Order must be at least zero.");
   CHECK(dirs.size() == r_values.size(),
