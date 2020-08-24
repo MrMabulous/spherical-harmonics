@@ -1069,6 +1069,10 @@ void ProjectWeightedSparseSampleStream(
   weighed_func_value_data[1].resize(largest_problem);
   weighed_func_value_data[2].resize(largest_problem);
   algn_vector<T> weighed_basis_values_data(largest_problem * num_coeffs);
+  algn_vector<T> transposed_data(largest_problem * num_coeffs);
+
+  VectorX<T> soln(num_coeffs);
+  MatrixX<T> t_times_weighed_basis_values(num_coeffs, num_coeffs);
 
   size_t array_ofst = 0;
   for(int p = 0; p < num_problems; p++) {
@@ -1103,9 +1107,8 @@ void ProjectWeightedSparseSampleStream(
 
     // Find the least squares fit for the coefficients of the basis
     // functions that best match the data
-    VectorX<T> soln;
-    MatrixX<T> t;
-    MatrixX<T> t_times_weighed_basis_values;
+    Eigen::Map<MatrixX<T>, Eigen::Aligned32> t(transposed_data.data(),
+                                               num_coeffs, num_problem_values);
     switch(solverType) {
       case SolverType::kLDLT:
       case SolverType::kLLT:
