@@ -1101,48 +1101,112 @@ void ProjectWeightedSparseSampleStream(
     }
 
     // iterate over three color channels
-    for (int c=0; c<3; c++) {
+    {
       TRACE_SCOPE("solving");
       switch(solverType) {
         case SolverType::kJacobiSVD:
-          soln = weighed_basis_values.jacobiSvd(
-              Eigen::ComputeThinU | Eigen::ComputeThinV).solve(weighed_func_values[c]);
+          auto solver = weighed_basis_values.jacobiSvd(Eigen::ComputeThinU | Eigen::ComputeThinV);
+          for (int c=0; c<3; c++) {
+            soln = solver.solve(weighed_func_values[c]);
+            // Copy everything over to our coeffs array
+            for (unsigned int i = 0; i < num_coeffs; i++) {
+              (*(coeffs_out[c]))[p * num_coeffs + i] = soln(i);
+            }
+          }
           break;
         case SolverType::kBdcsSVD:
-          soln = weighed_basis_values.bdcSvd(
-              Eigen::ComputeThinU | Eigen::ComputeThinV).solve(weighed_func_values[c]);
+          auto solver = weighed_basis_values.bdcSvd(Eigen::ComputeThinU | Eigen::ComputeThinV);
+          for (int c=0; c<3; c++) {
+            soln = solver.solve(weighed_func_values[c]);
+            // Copy everything over to our coeffs array
+            for (unsigned int i = 0; i < num_coeffs; i++) {
+              (*(coeffs_out[c]))[p * num_coeffs + i] = soln(i);
+            }
+          }
           break;
         case SolverType::kHouseholderQR:
-          soln = weighed_basis_values.householderQr().solve(weighed_func_values[c]);
+          auto solver = weighed_basis_values.householderQr();
+          for (int c=0; c<3; c++) {
+            soln = solver.solve(weighed_func_values[c]);
+            // Copy everything over to our coeffs array
+            for (unsigned int i = 0; i < num_coeffs; i++) {
+              (*(coeffs_out[c]))[p * num_coeffs + i] = soln(i);
+            }
+          }
           break;
         case SolverType::kColPivHouseholderQR:
-          soln = weighed_basis_values.colPivHouseholderQr().solve(weighed_func_values[c]);
+          auto solver = weighed_basis_values.colPivHouseholderQr();
+          for (int c=0; c<3; c++) {
+            soln = solver.solve(weighed_func_values[c]);
+            // Copy everything over to our coeffs array
+            for (unsigned int i = 0; i < num_coeffs; i++) {
+              (*(coeffs_out[c]))[p * num_coeffs + i] = soln(i);
+            }
+          }
           break;
         case SolverType::kFullPivHouseholderQR:
-          soln = weighed_basis_values.fullPivHouseholderQr().solve(weighed_func_values[c]);
+          auto solver = weighed_basis_values.fullPivHouseholderQr();
+          for (int c=0; c<3; c++) {
+            soln = solver.solve(weighed_func_values[c]);
+            // Copy everything over to our coeffs array
+            for (unsigned int i = 0; i < num_coeffs; i++) {
+              (*(coeffs_out[c]))[p * num_coeffs + i] = soln(i);
+            }
+          }
           break;
         case SolverType::kLDLT:
-          soln = t_times_weighed_basis_values.ldlt().solve(t * weighed_func_values[c]);
+          auto solver = t_times_weighed_basis_values.ldlt();
+          for (int c=0; c<3; c++) {
+            soln = solver.solve(t * weighed_func_values[c]);
+            // Copy everything over to our coeffs array
+            for (unsigned int i = 0; i < num_coeffs; i++) {
+              (*(coeffs_out[c]))[p * num_coeffs + i] = soln(i);
+            }
+          }
           break;
         case SolverType::kLLT:
-          soln = t_times_weighed_basis_values.llt().solve(t * weighed_func_values[c]);
+          auto solver = t_times_weighed_basis_values.llt();
+          for (int c=0; c<3; c++) {
+            soln = solver.solve(t * weighed_func_values[c]);
+            // Copy everything over to our coeffs array
+            for (unsigned int i = 0; i < num_coeffs; i++) {
+              (*(coeffs_out[c]))[p * num_coeffs + i] = soln(i);
+            }
+          }
           break;
         case SolverType::kCompleteOrthogonalDecomposition:
-          soln = weighed_basis_values.completeOrthogonalDecomposition().solve(
-                 weighed_func_values[c]);
+          auto solver = weighed_basis_values.completeOrthogonalDecomposition();
+          for (int c=0; c<3; c++) {
+            soln = solver.solve(weighed_func_values[c]);
+            // Copy everything over to our coeffs array
+            for (unsigned int i = 0; i < num_coeffs; i++) {
+              (*(coeffs_out[c]))[p * num_coeffs + i] = soln(i);
+            }
+          }
           break;
         case SolverType::kPartialPivLU:
-          soln = t_times_weighed_basis_values.partialPivLu().solve(t * weighed_func_values[c]);
+          auto solver = t_times_weighed_basis_values.partialPivLu();
+          for (int c=0; c<3; c++) {
+            soln = solver.solve(t * weighed_func_values[c]);
+            // Copy everything over to our coeffs array
+            for (unsigned int i = 0; i < num_coeffs; i++) {
+              (*(coeffs_out[c]))[p * num_coeffs + i] = soln(i);
+            }
+          }
           break;
         case SolverType::kFullPivLU:
-          soln = t_times_weighed_basis_values.fullPivLu().solve(t * weighed_func_values[c]);
+          auto solver = t_times_weighed_basis_values.fullPivLu();
+          for (int c=0; c<3; c++) {
+            soln = solver.solve(t * weighed_func_values[c]);
+            // Copy everything over to our coeffs array
+            for (unsigned int i = 0; i < num_coeffs; i++) {
+              (*(coeffs_out[c]))[p * num_coeffs + i] = soln(i);
+            }
+          }
           break;
         default:
           CHECK(false, "Invalid SolverType.");
-      }
-      // Copy everything over to our coeffs array
-      for (unsigned int i = 0; i < num_coeffs; i++) {
-        (*(coeffs_out[c]))[p * num_coeffs + i] = soln(i);
+          break;
       }
     }
     array_ofst += num_problem_values;
