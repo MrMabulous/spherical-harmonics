@@ -1074,16 +1074,16 @@ void ProjectWeightedSparseSampleStream(
   Eigen::Matrix<T,num_coeffs,num_coeffs> t_times_weighed_basis_values;
 
   //Eigen::LDLT<MatrixX<T>> solver(num_coeffs);
-  //Eigen::LLT<Eigen::Matrix<T,num_coeffs,num_coeffs>> solver(num_coeffs);
-  Eigen::JacobiSVD<MatrixX<T>> solver(largest_problem, num_coeffs, Eigen::ComputeThinU | Eigen::ComputeThinV);
+  Eigen::LLT<Eigen::Matrix<T,num_coeffs,num_coeffs>> solver(num_coeffs);
+  //Eigen::JacobiSVD<MatrixX<T>> solver(largest_problem, num_coeffs, Eigen::ComputeThinU | Eigen::ComputeThinV);
 
   size_t array_ofst = 0;
   for(int p = 0; p < num_problems; p++) {
     size_t num_problem_values = num_values_array[p];
-    //Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,num_coeffs>, Eigen::Aligned32> weighed_basis_values(weighed_basis_values_data.data(),
-    //                                                                                              num_problem_values, num_coeffs);
-    Eigen::Map<MatrixX<T>, Eigen::Aligned32> weighed_basis_values(weighed_basis_values_data.data(),
-                                                                  num_problem_values, num_coeffs);
+    Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,num_coeffs>, Eigen::Aligned32> weighed_basis_values(weighed_basis_values_data.data(),
+                                                                                                  num_problem_values, num_coeffs);
+    //Eigen::Map<MatrixX<T>, Eigen::Aligned32> weighed_basis_values(weighed_basis_values_data.data(),
+    //                                                              num_problem_values, num_coeffs);
     Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,4>, Eigen::Aligned32> weighed_func_values(weighed_func_value_data.data(),
                                                                                         num_problem_values, 4);
 
@@ -1104,8 +1104,8 @@ void ProjectWeightedSparseSampleStream(
 
     // Find the least squares fit for the coefficients of the basis
     // functions that best match the data
-    //Eigen::Map<Eigen::Matrix<T,num_coeffs,Eigen::Dynamic>, Eigen::Aligned32> t(transposed_data.data(),
-    //                                                                           num_coeffs, num_problem_values);
+    Eigen::Map<Eigen::Matrix<T,num_coeffs,Eigen::Dynamic>, Eigen::Aligned32> t(transposed_data.data(),
+                                                                               num_coeffs, num_problem_values);
     /*
     switch(solverType) {
       case SolverType::kLDLT:
@@ -1120,8 +1120,8 @@ void ProjectWeightedSparseSampleStream(
         break;
     }
     */
-    //t.noalias() = weighed_basis_values.transpose();
-    //t_times_weighed_basis_values.noalias() = t * weighed_basis_values;
+    t.noalias() = weighed_basis_values.transpose();
+    t_times_weighed_basis_values.noalias() = t * weighed_basis_values;
 
     /*
     // iterate over three color channels
@@ -1251,14 +1251,14 @@ void ProjectWeightedSparseSampleStream(
     */
     {
       TRACE_SCOPE("compute");
-      //solver.compute(t_times_weighed_basis_values);
-      solver.compute(weighed_basis_values);
+      solver.compute(t_times_weighed_basis_values);
+      //solver.compute(weighed_basis_values);
     }
-    //t_times_func_values.noalias() = t * weighed_func_values;
+    t_times_func_values.noalias() = t * weighed_func_values;
     {
       TRACE_SCOPE("solve");
-      //soln.noalias() = solver.solve(t_times_func_values);
-      soln.noalias() = solver.solve(weighed_func_values);
+      soln.noalias() = solver.solve(t_times_func_values);
+      //soln.noalias() = solver.solve(weighed_func_values);
     }
     // Copy everything over to our coeffs array
     for(int c=0; c<3; c++) {
