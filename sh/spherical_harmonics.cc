@@ -1075,13 +1075,15 @@ void ProjectWeightedSparseSampleStream(
 
   //Eigen::LDLT<MatrixX<T>> solver(num_coeffs);
   //Eigen::LLT<Eigen::Matrix<T,num_coeffs,num_coeffs>> solver(num_coeffs);
-  Eigen::JacobiSVD<Eigen::Matrix<T,Eigen::Dynamic,num_coeffs>> solver(largest_problem, num_coeffs, Eigen::ComputeThinU | Eigen::ComputeThinV);
+  Eigen::JacobiSVD<MatrixX<T>> solver(largest_problem, num_coeffs, Eigen::ComputeThinU | Eigen::ComputeThinV);
 
   size_t array_ofst = 0;
   for(int p = 0; p < num_problems; p++) {
     size_t num_problem_values = num_values_array[p];
-    Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,num_coeffs>, Eigen::Aligned32> weighed_basis_values(weighed_basis_values_data.data(),
-                                                                                                  num_problem_values, num_coeffs);
+    //Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,num_coeffs>, Eigen::Aligned32> weighed_basis_values(weighed_basis_values_data.data(),
+    //                                                                                              num_problem_values, num_coeffs);
+    Eigen::Map<MatrixX<T>, Eigen::Aligned32> weighed_basis_values(weighed_basis_values_data.data(),
+                                                                  num_problem_values, num_coeffs);
     Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,4>, Eigen::Aligned32> weighed_func_values(weighed_func_value_data.data(),
                                                                                         num_problem_values, 4);
 
@@ -1513,7 +1515,7 @@ template std::unique_ptr<algn_vector<float>>
       const algn_vector<Vector3<float>>& dirs,
       const algn_vector<float>& values, const algn_vector<float>& weights,
       SolverType solverType);
-
+/*
 template void ProjectWeightedSparseSampleStream<double,1>(
     int num_problems, const algn_vector<Vector3<double>>& dirs,
     const algn_vector<double>& r_values, const algn_vector<double>& g_values,
@@ -1563,6 +1565,7 @@ template void ProjectWeightedSparseSampleStream<double,4>(
     const algn_vector<size_t>& index_array, const algn_vector<size_t>& num_values_array,
     algn_vector<double>* r_coeffs_out, algn_vector<double>* g_coeffs_out,
     algn_vector<double>* b_coeffs_out, SolverType solverType);
+    */
 template void ProjectWeightedSparseSampleStream<float,4>(
     int num_problems, const algn_vector<Vector3<float>>& dirs,
     const algn_vector<float>& r_values, const algn_vector<float>& g_values,
@@ -1570,6 +1573,7 @@ template void ProjectWeightedSparseSampleStream<float,4>(
     const algn_vector<size_t>& index_array, const algn_vector<size_t>& num_values_array,
     algn_vector<float>* r_coeffs_out, algn_vector<float>* g_coeffs_out,
     algn_vector<float>* b_coeffs_out, SolverType solverType);
+/*
 template void ProjectWeightedSparseSampleStream<double,5>(
     int num_problems, const algn_vector<Vector3<double>>& dirs,
     const algn_vector<double>& r_values, const algn_vector<double>& g_values,
@@ -1598,6 +1602,7 @@ template void ProjectWeightedSparseSampleStream<float,6>(
     const algn_vector<size_t>& index_array, const algn_vector<size_t>& num_values_array,
     algn_vector<float>* r_coeffs_out, algn_vector<float>* g_coeffs_out,
     algn_vector<float>* b_coeffs_out, SolverType solverType);
+*/
 
 template double EvalSHSum<double, double>(
     int order,
