@@ -1068,6 +1068,7 @@ void ProjectWeightedSparseSampleStream(
   algn_vector<T> weighed_basis_values_data(largest_problem * num_coeffs);
   algn_vector<T> transposed_data(largest_problem * num_coeffs);
 
+  Eigen::internal::set_is_malloc_allowed(false);
   MatrixX<T> soln(num_coeffs, 3);
   MatrixX<T> t_times_func_values(num_coeffs, 3);
   MatrixX<T> t_times_weighed_basis_values(num_coeffs, num_coeffs);
@@ -1075,7 +1076,7 @@ void ProjectWeightedSparseSampleStream(
   Eigen::LDLT<MatrixX<T>> solver(num_coeffs);
 
   size_t array_ofst = 0;
-  Eigen::internal::set_is_malloc_allowed(false);
+  //Eigen::internal::set_is_malloc_allowed(false);
   for(int p = 0; p < num_problems; p++) {
     size_t num_problem_values = num_values_array[p];
     Eigen::Map<MatrixX<T>, Eigen::Aligned32> weighed_basis_values(weighed_basis_values_data.data(),
