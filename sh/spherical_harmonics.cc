@@ -1051,7 +1051,7 @@ void ProjectWeightedSparseSampleStream(
   coeffs_out[1] = g_coeffs_out;
   coeffs_out[2] = b_coeffs_out;
 
-  // precompute spherical harmonics coefficients for each dir.
+  // precompute spherical harmonics coefficients for each direction.
   algn_vector<algn_vector<T>> sh_per_dir;
   sh_per_dir.resize(dirs.size());
   for(int d=0; d<dirs.size(); d++) {
@@ -1064,15 +1064,12 @@ void ProjectWeightedSparseSampleStream(
       largest_problem = num_values_array[p];
     }
   }
-  algn_vector<T> weighed_func_value_data[3];
-  weighed_func_value_data[0].resize(largest_problem);
-  weighed_func_value_data[1].resize(largest_problem);
-  weighed_func_value_data[2].resize(largest_problem);
+  algn_vector<T> weighed_func_value_data(largest_problem * 3);
   algn_vector<T> weighed_basis_values_data(largest_problem * num_coeffs);
   algn_vector<T> transposed_data(largest_problem * num_coeffs);
 
-  VectorX<T> soln(num_coeffs);
-  VectorX<T> t_times_func_values(num_coeffs);
+  MatrixX<T> soln(num_coeffs, 3);
+  MatrixX<T> t_times_func_values(num_coeffs, 3);
   MatrixX<T> t_times_weighed_basis_values(num_coeffs, num_coeffs);
 
   Eigen::LDLT<MatrixX<T>> solver(num_coeffs);
@@ -1083,24 +1080,15 @@ void ProjectWeightedSparseSampleStream(
     size_t num_problem_values = num_values_array[p];
     Eigen::Map<MatrixX<T>, Eigen::Aligned32> weighed_basis_values(weighed_basis_values_data.data(),
                                                                   num_problem_values, num_coeffs);
-    Eigen::Map<VectorX<T>, Eigen::Aligned32> weighed_func_values_r(weighed_func_value_data[0].data(),
-                                                                   num_problem_values);
-    Eigen::Map<VectorX<T>, Eigen::Aligned32> weighed_func_values_g(weighed_func_value_data[1].data(),
-                                                                   num_problem_values);
-    Eigen::Map<VectorX<T>, Eigen::Aligned32> weighed_func_values_b(weighed_func_value_data[2].data(),
-                                                                   num_problem_values);
-    
-    Eigen::Map<VectorX<T>, Eigen::Aligned32>* weighed_func_values[3];
-    weighed_func_values[0] = &weighed_func_values_r;
-    weighed_func_values[1] = &weighed_func_values_g;
-    weighed_func_values[2] = &weighed_func_values_b;
+    Eigen::Map<MatrixX<T>, Eigen::Aligned32> weighed_func_values(weighed_func_value_data.data(),
+                                                                 num_problem_values, 3);
 
     for (unsigned int i = 0; i < num_problem_values; i++) {
       T weight = sqrt(weights[array_ofst + i]);
       size_t dir_value_idx = index_array[array_ofst + i];
-      weighed_func_values_r(i) = weight * r_values[dir_value_idx];
-      weighed_func_values_g(i) = weight * g_values[dir_value_idx];
-      weighed_func_values_b(i) = weight * b_values[dir_value_idx];
+      weighed_func_values(i,0) = weight * r_values[dir_value_idx];
+      weighed_func_values(i,1) = weight * g_values[dir_value_idx];
+      weighed_func_values(i,2) = weight * b_values[dir_value_idx];
       for (int l = 0; l <= order; l++) {
         for (int m = -l; m <= l; m++) {
           int sh_idx = GetIndex(l, m);
@@ -1257,12 +1245,12 @@ void ProjectWeightedSparseSampleStream(
     }
     */
     solver.compute(t_times_weighed_basis_values);
-    for (int c=0; c<3; c++) {
-      t_times_func_values.noalias() = t * *(weighed_func_values[c]);
-      soln.noalias() = solver.solve(t_times_func_values);
-      // Copy everything over to our coeffs array
+    t_times_func_values.noalias() = t * weighed_func_values;
+    soln.noalias() = solver.solve(t_times_func_values);
+    // Copy everything over to our coeffs array
+    for(int c=0; c<3; c++) {
       for (unsigned int i = 0; i < num_coeffs; i++) {
-        (*(coeffs_out[c]))[p * num_coeffs + i] = soln(i);
+        (*(coeffs_out[c]))[p * num_coeffs + i] = soln(i, c);
       }
     }
     array_ofst += num_problem_values;
