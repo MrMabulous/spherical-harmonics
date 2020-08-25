@@ -1246,9 +1246,15 @@ void ProjectWeightedSparseSampleStream(
       }
     }
     */
-    solver.compute(t_times_weighed_basis_values);
+    {
+      TRACE_SCOPE("compute");
+      solver.compute(t_times_weighed_basis_values);
+    }
     t_times_func_values.noalias() = t * weighed_func_values;
-    soln.noalias() = solver.solve(t_times_func_values);
+    {
+      TRACE_SCOPE("solve");
+      soln.noalias() = solver.solve(t_times_func_values);
+    }
     // Copy everything over to our coeffs array
     for(int c=0; c<3; c++) {
       for (unsigned int i = 0; i < num_coeffs; i++) {
