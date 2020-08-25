@@ -1072,7 +1072,8 @@ void ProjectWeightedSparseSampleStream(
   MatrixX<T> t_times_func_values(num_coeffs, 4);
   MatrixX<T> t_times_weighed_basis_values(num_coeffs, num_coeffs);
 
-  Eigen::LDLT<MatrixX<T>> solver(num_coeffs);
+  //Eigen::LDLT<MatrixX<T>> solver(num_coeffs);
+  Eigen::LLT<MatrixX<T>> solver(num_coeffs);
 
   size_t array_ofst = 0;
   for(int p = 0; p < num_problems; p++) {
