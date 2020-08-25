@@ -232,9 +232,9 @@ void ProjectWeightedSparseSamples(
     SolverType solverType = SolverType::kJacobiSVD);
 
 // Stream version of ProjectWeightedSparseSamples, for 3 color channels.
-template <typename T>
+template <typename T, int order>
 void ProjectWeightedSparseSampleStream(
-    int order, int num_problems, const algn_vector<Vector3<T>>& dirs,
+    int num_problems, const algn_vector<Vector3<T>>& dirs,
     const algn_vector<T>& r_values, const algn_vector<T>& g_values,
     const algn_vector<T>& b_values, const algn_vector<T>& weights,
     const algn_vector<size_t>& index_array, const algn_vector<size_t>& num_values_array,

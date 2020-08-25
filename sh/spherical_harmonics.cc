@@ -1009,9 +1009,9 @@ std::unique_ptr<algn_vector<T>> ProjectWeightedSparseSamples(
   return std::unique_ptr<algn_vector<T>>(coeffs);
 }
 
-template <typename T>
+template <typename T, int order>
 void ProjectWeightedSparseSampleStream(
-    int order, int num_problems, const algn_vector<Vector3<T>>& dirs,
+    int num_problems, const algn_vector<Vector3<T>>& dirs,
     const algn_vector<T>& r_values, const algn_vector<T>& g_values,
     const algn_vector<T>& b_values, const algn_vector<T>& weights,
     const algn_vector<size_t>& index_array, const algn_vector<size_t>& num_values_array,
@@ -1036,7 +1036,7 @@ void ProjectWeightedSparseSampleStream(
   CHECK(order <= kEfficientOrderLimit,
       "order must be smaller.");
 
-  const size_t num_coeffs = GetCoefficientCount(order);
+  constexpr int num_coeffs = GetCoefficientCount(order);
 
   // Solve weighted linear least squares systems W^(1/2)*Ax = W^(1/2)*b
   // for the coefficients, x. Each row in the matrix A are the values of the
@@ -1068,20 +1068,21 @@ void ProjectWeightedSparseSampleStream(
   algn_vector<T> weighed_basis_values_data(largest_problem * num_coeffs);
   algn_vector<T> transposed_data(largest_problem * num_coeffs);
 
-  MatrixX<T> soln(num_coeffs, 4);
-  MatrixX<T> t_times_func_values(num_coeffs, 4);
-  MatrixX<T> t_times_weighed_basis_values(num_coeffs, num_coeffs);
+  Eigen::Matrix<T,num_coeffs,4> soln;
+  //MatrixX<T> soln(num_coeffs, 4);
+  Eigen::Matrix<T,num_coeffs,4> t_times_func_values;
+  Eigen::Matrix<T,num_coeffs,num_coeffs> t_times_weighed_basis_values;
 
   //Eigen::LDLT<MatrixX<T>> solver(num_coeffs);
-  Eigen::LLT<MatrixX<T>> solver(num_coeffs);
+  Eigen::LLT<Eigen::Matrix<T,num_coeffs,num_coeffs>> solver(num_coeffs);
 
   size_t array_ofst = 0;
   for(int p = 0; p < num_problems; p++) {
     size_t num_problem_values = num_values_array[p];
-    Eigen::Map<MatrixX<T>, Eigen::Aligned32> weighed_basis_values(weighed_basis_values_data.data(),
-                                                                  num_problem_values, num_coeffs);
-    Eigen::Map<MatrixX<T>, Eigen::Aligned32> weighed_func_values(weighed_func_value_data.data(),
-                                                                 num_problem_values, 4);
+    Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,num_coeffs>, Eigen::Aligned32> weighed_basis_values(weighed_basis_values_data.data(),
+                                                                                                  num_problem_values, num_coeffs);
+    Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,4>, Eigen::Aligned32> weighed_func_values(weighed_func_value_data.data(),
+                                                                                        num_problem_values, 4);
 
     for (unsigned int i = 0; i < num_problem_values; i++) {
       T weight = sqrt(weights[array_ofst + i]);
@@ -1100,8 +1101,8 @@ void ProjectWeightedSparseSampleStream(
 
     // Find the least squares fit for the coefficients of the basis
     // functions that best match the data
-    Eigen::Map<MatrixX<T>, Eigen::Aligned32> t(transposed_data.data(),
-                                               num_coeffs, num_problem_values);
+    Eigen::Map<Eigen::Matrix<T,num_coeffs,Eigen::Dynamic>, Eigen::Aligned32> t(transposed_data.data(),
+                                                                               num_coeffs, num_problem_values);
     /*
     switch(solverType) {
       case SolverType::kLDLT:
@@ -1504,14 +1505,84 @@ template std::unique_ptr<algn_vector<float>>
       const algn_vector<float>& values, const algn_vector<float>& weights,
       SolverType solverType);
 
-template void ProjectWeightedSparseSampleStream<double>(
+template void ProjectWeightedSparseSampleStream<double,1>(
     int order, int num_problems, const algn_vector<Vector3<double>>& dirs,
     const algn_vector<double>& r_values, const algn_vector<double>& g_values,
     const algn_vector<double>& b_values, const algn_vector<double>& weights,
     const algn_vector<size_t>& index_array, const algn_vector<size_t>& num_values_array,
     algn_vector<double>* r_coeffs_out, algn_vector<double>* g_coeffs_out,
     algn_vector<double>* b_coeffs_out, SolverType solverType);
-template void ProjectWeightedSparseSampleStream<float>(
+template void ProjectWeightedSparseSampleStream<float,1>(
+    int order, int num_problems, const algn_vector<Vector3<float>>& dirs,
+    const algn_vector<float>& r_values, const algn_vector<float>& g_values,
+    const algn_vector<float>& b_values, const algn_vector<float>& weights,
+    const algn_vector<size_t>& index_array, const algn_vector<size_t>& num_values_array,
+    algn_vector<float>* r_coeffs_out, algn_vector<float>* g_coeffs_out,
+    algn_vector<float>* b_coeffs_out, SolverType solverType);
+template void ProjectWeightedSparseSampleStream<double,2>(
+    int order, int num_problems, const algn_vector<Vector3<double>>& dirs,
+    const algn_vector<double>& r_values, const algn_vector<double>& g_values,
+    const algn_vector<double>& b_values, const algn_vector<double>& weights,
+    const algn_vector<size_t>& index_array, const algn_vector<size_t>& num_values_array,
+    algn_vector<double>* r_coeffs_out, algn_vector<double>* g_coeffs_out,
+    algn_vector<double>* b_coeffs_out, SolverType solverType);
+template void ProjectWeightedSparseSampleStream<float,2>(
+    int order, int num_problems, const algn_vector<Vector3<float>>& dirs,
+    const algn_vector<float>& r_values, const algn_vector<float>& g_values,
+    const algn_vector<float>& b_values, const algn_vector<float>& weights,
+    const algn_vector<size_t>& index_array, const algn_vector<size_t>& num_values_array,
+    algn_vector<float>* r_coeffs_out, algn_vector<float>* g_coeffs_out,
+    algn_vector<float>* b_coeffs_out, SolverType solverType);
+template void ProjectWeightedSparseSampleStream<double,3>(
+    int order, int num_problems, const algn_vector<Vector3<double>>& dirs,
+    const algn_vector<double>& r_values, const algn_vector<double>& g_values,
+    const algn_vector<double>& b_values, const algn_vector<double>& weights,
+    const algn_vector<size_t>& index_array, const algn_vector<size_t>& num_values_array,
+    algn_vector<double>* r_coeffs_out, algn_vector<double>* g_coeffs_out,
+    algn_vector<double>* b_coeffs_out, SolverType solverType);
+template void ProjectWeightedSparseSampleStream<float,3>(
+    int order, int num_problems, const algn_vector<Vector3<float>>& dirs,
+    const algn_vector<float>& r_values, const algn_vector<float>& g_values,
+    const algn_vector<float>& b_values, const algn_vector<float>& weights,
+    const algn_vector<size_t>& index_array, const algn_vector<size_t>& num_values_array,
+    algn_vector<float>* r_coeffs_out, algn_vector<float>* g_coeffs_out,
+    algn_vector<float>* b_coeffs_out, SolverType solverType);
+template void ProjectWeightedSparseSampleStream<double,4>(
+    int order, int num_problems, const algn_vector<Vector3<double>>& dirs,
+    const algn_vector<double>& r_values, const algn_vector<double>& g_values,
+    const algn_vector<double>& b_values, const algn_vector<double>& weights,
+    const algn_vector<size_t>& index_array, const algn_vector<size_t>& num_values_array,
+    algn_vector<double>* r_coeffs_out, algn_vector<double>* g_coeffs_out,
+    algn_vector<double>* b_coeffs_out, SolverType solverType);
+template void ProjectWeightedSparseSampleStream<float,4>(
+    int order, int num_problems, const algn_vector<Vector3<float>>& dirs,
+    const algn_vector<float>& r_values, const algn_vector<float>& g_values,
+    const algn_vector<float>& b_values, const algn_vector<float>& weights,
+    const algn_vector<size_t>& index_array, const algn_vector<size_t>& num_values_array,
+    algn_vector<float>* r_coeffs_out, algn_vector<float>* g_coeffs_out,
+    algn_vector<float>* b_coeffs_out, SolverType solverType);
+template void ProjectWeightedSparseSampleStream<double,5>(
+    int order, int num_problems, const algn_vector<Vector3<double>>& dirs,
+    const algn_vector<double>& r_values, const algn_vector<double>& g_values,
+    const algn_vector<double>& b_values, const algn_vector<double>& weights,
+    const algn_vector<size_t>& index_array, const algn_vector<size_t>& num_values_array,
+    algn_vector<double>* r_coeffs_out, algn_vector<double>* g_coeffs_out,
+    algn_vector<double>* b_coeffs_out, SolverType solverType);
+template void ProjectWeightedSparseSampleStream<float,5>(
+    int order, int num_problems, const algn_vector<Vector3<float>>& dirs,
+    const algn_vector<float>& r_values, const algn_vector<float>& g_values,
+    const algn_vector<float>& b_values, const algn_vector<float>& weights,
+    const algn_vector<size_t>& index_array, const algn_vector<size_t>& num_values_array,
+    algn_vector<float>* r_coeffs_out, algn_vector<float>* g_coeffs_out,
+    algn_vector<float>* b_coeffs_out, SolverType solverType);
+template void ProjectWeightedSparseSampleStream<double,6>(
+    int order, int num_problems, const algn_vector<Vector3<double>>& dirs,
+    const algn_vector<double>& r_values, const algn_vector<double>& g_values,
+    const algn_vector<double>& b_values, const algn_vector<double>& weights,
+    const algn_vector<size_t>& index_array, const algn_vector<size_t>& num_values_array,
+    algn_vector<double>* r_coeffs_out, algn_vector<double>* g_coeffs_out,
+    algn_vector<double>* b_coeffs_out, SolverType solverType);
+template void ProjectWeightedSparseSampleStream<float,6>(
     int order, int num_problems, const algn_vector<Vector3<float>>& dirs,
     const algn_vector<float>& r_values, const algn_vector<float>& g_values,
     const algn_vector<float>& b_values, const algn_vector<float>& weights,
