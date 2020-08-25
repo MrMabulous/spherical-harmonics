@@ -1078,6 +1078,7 @@ void ProjectWeightedSparseSampleStream(
   Eigen::LDLT<MatrixX<T>> solver(num_coeffs);
 
   size_t array_ofst = 0;
+  Eigen::internal::set_is_malloc_allowed(false);
   for(int p = 0; p < num_problems; p++) {
     size_t num_problem_values = num_values_array[p];
     Eigen::Map<MatrixX<T>, Eigen::Aligned32> weighed_basis_values(weighed_basis_values_data.data(),
@@ -1266,6 +1267,7 @@ void ProjectWeightedSparseSampleStream(
     }
     array_ofst += num_problem_values;
   }
+  Eigen::internal::set_is_malloc_allowed(true);
 }
 
 template <typename T, typename S>
