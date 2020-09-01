@@ -1042,62 +1042,68 @@ void ProjectWeightedSparseSampleStream(
   // for the coefficients, x. Each row in the matrix A are the values of the
   // spherical harmonic basis functions evaluated at that sample's direction
   // (from @dirs). The corresponding row in b is the value in @values.
-  r_coeffs_out->resize(num_coeffs * num_problems);
-  g_coeffs_out->resize(num_coeffs * num_problems);
-  b_coeffs_out->resize(num_coeffs * num_problems);
+  {
+    TRACE_SCOPE("mem alloc");
+    r_coeffs_out->resize(num_coeffs * num_problems);
+    g_coeffs_out->resize(num_coeffs * num_problems);
+    b_coeffs_out->resize(num_coeffs * num_problems);
 
-  algn_vector<T>* coeffs_out[3];
-  coeffs_out[0] = r_coeffs_out;
-  coeffs_out[1] = g_coeffs_out;
-  coeffs_out[2] = b_coeffs_out;
+    algn_vector<T>* coeffs_out[3];
+    coeffs_out[0] = r_coeffs_out;
+    coeffs_out[1] = g_coeffs_out;
+    coeffs_out[2] = b_coeffs_out;
 
-  // precompute spherical harmonics coefficients for each direction.
-  algn_vector<algn_vector<T>> sh_per_dir;
-  sh_per_dir.resize(dirs.size());
-  for(int d=0; d<dirs.size(); d++) {
-    sh_per_dir[d].resize(num_coeffs);
-    SHEval<T>[order](dirs[d][0], dirs[d][1], dirs[d][2], sh_per_dir[d].data());
-  }
-  size_t largest_problem = 0;
-  for(int p = 0; p < num_problems; p++) {
-    if(num_values_array[p] > largest_problem) {
-      largest_problem = num_values_array[p];
+    // precompute spherical harmonics coefficients for each direction.
+    algn_vector<algn_vector<T>> sh_per_dir;
+    sh_per_dir.resize(dirs.size());
+    for(int d=0; d<dirs.size(); d++) {
+      sh_per_dir[d].resize(num_coeffs);
+      SHEval<T>[order](dirs[d][0], dirs[d][1], dirs[d][2], sh_per_dir[d].data());
     }
+    size_t largest_problem = 0;
+    for(int p = 0; p < num_problems; p++) {
+      if(num_values_array[p] > largest_problem) {
+        largest_problem = num_values_array[p];
+      }
+    }
+    algn_vector<T> weighed_func_value_data(largest_problem * 4);
+    algn_vector<T> weighed_basis_values_data(largest_problem * num_coeffs);
+    algn_vector<T> regression_weighed_func_value_data(largest_problem * 4);
+    algn_vector<T> regression_weighed_basis_values_data(largest_problem * num_coeffs);
+    algn_vector<T> transposed_data(largest_problem * num_coeffs);
+    algn_vector<T> reprojection_values_data(largest_problem * 4);
+    algn_vector<T> reprojection_errors(largest_problem);
+
+    Eigen::Matrix<T,num_coeffs,4> soln;
+    //MatrixX<T> soln(num_coeffs, 4);
+    Eigen::Matrix<T,num_coeffs,4> t_times_regression_weighed_func_values;
+    Eigen::Matrix<T,num_coeffs,num_coeffs> t_times_regression_weighed_basis_values;
+
+    //Eigen::LDLT<MatrixX<T>> solver(num_coeffs);
+    Eigen::LLT<Eigen::Matrix<T,num_coeffs,num_coeffs>> solver(num_coeffs);
+    //Eigen::JacobiSVD<MatrixX<T>> solver(largest_problem, num_coeffs, Eigen::ComputeThinU | Eigen::ComputeThinV);
+
   }
-  algn_vector<T> weighed_func_value_data(largest_problem * 4);
-  algn_vector<T> weighed_basis_values_data(largest_problem * num_coeffs);
-  algn_vector<T> regression_weighed_func_value_data(largest_problem * 4);
-  algn_vector<T> regression_weighed_basis_values_data(largest_problem * num_coeffs);
-  algn_vector<T> transposed_data(largest_problem * num_coeffs);
-  algn_vector<T> reprojection_values_data(largest_problem * 4);
-  algn_vector<T> reprojection_errors(largest_problem);
-
-  Eigen::Matrix<T,num_coeffs,4> soln;
-  //MatrixX<T> soln(num_coeffs, 4);
-  Eigen::Matrix<T,num_coeffs,4> t_times_regression_weighed_func_values;
-  Eigen::Matrix<T,num_coeffs,num_coeffs> t_times_regression_weighed_basis_values;
-
-  //Eigen::LDLT<MatrixX<T>> solver(num_coeffs);
-  Eigen::LLT<Eigen::Matrix<T,num_coeffs,num_coeffs>> solver(num_coeffs);
-  //Eigen::JacobiSVD<MatrixX<T>> solver(largest_problem, num_coeffs, Eigen::ComputeThinU | Eigen::ComputeThinV);
-
   size_t array_ofst = 0;
   for(int p = 0; p < num_problems; p++) {
     TRACE_SCOPE("solve problem");
     size_t num_problem_values = num_values_array[p];
-    Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,num_coeffs>, Eigen::Aligned32> weighed_basis_values(weighed_basis_values_data.data(),
-                                                                                                  num_problem_values, num_coeffs);
-    Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,4>, Eigen::Aligned32> weighed_func_values(weighed_func_value_data.data(),
-                                                                                        num_problem_values, 4);
-    Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,num_coeffs>, Eigen::Aligned32> regression_weighed_basis_values(regression_weighed_basis_values_data.data(),
-                                                                                                             num_problem_values, num_coeffs);
-    Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,4>, Eigen::Aligned32> regression_weighed_func_values(regression_weighed_func_value_data.data(),
-                                                                                                   num_problem_values, 4);
-    Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,4>, Eigen::Aligned32> reprojection_values(reprojection_values_data.data(),
-                                                                                        num_problem_values, 4);
-    // unweighed transpose of basis values:
-    Eigen::Map<Eigen::Matrix<T,num_coeffs,Eigen::Dynamic>, Eigen::Aligned32> t(transposed_data.data(),
-                                                                               num_coeffs, num_problem_values);
+    {
+      TRACE_SCOPE("map");
+      Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,num_coeffs>, Eigen::Aligned32> weighed_basis_values(weighed_basis_values_data.data(),
+                                                                                                    num_problem_values, num_coeffs);
+      Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,4>, Eigen::Aligned32> weighed_func_values(weighed_func_value_data.data(),
+                                                                                          num_problem_values, 4);
+      Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,num_coeffs>, Eigen::Aligned32> regression_weighed_basis_values(regression_weighed_basis_values_data.data(),
+                                                                                                              num_problem_values, num_coeffs);
+      Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,4>, Eigen::Aligned32> regression_weighed_func_values(regression_weighed_func_value_data.data(),
+                                                                                                    num_problem_values, 4);
+      Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,4>, Eigen::Aligned32> reprojection_values(reprojection_values_data.data(),
+                                                                                          num_problem_values, 4);
+      // unweighed transpose of basis values:
+      Eigen::Map<Eigen::Matrix<T,num_coeffs,Eigen::Dynamic>, Eigen::Aligned32> t(transposed_data.data(),
+                                                                                num_coeffs, num_problem_values);
+    }
 
     for (unsigned int i = 0; i < num_problem_values; i++) {
       reprojection_errors[i] = 1;
@@ -1281,17 +1287,15 @@ void ProjectWeightedSparseSampleStream(
           }
         }
         */
+        TRACE_SCOPE("solve");
         {
-          TRACE_SCOPE("compute");
           solver.compute(t_times_regression_weighed_basis_values);
         }
         t_times_regression_weighed_func_values.noalias() = t * regression_weighed_func_values;
         {
-          TRACE_SCOPE("solve");
           soln.noalias() = solver.solve(t_times_regression_weighed_func_values);
         }
         {
-          TRACE_SCOPE("calc_error");
           reprojection_values.noalias() = weighed_basis_values * soln;
           for(int e = 0; e < num_problem_values; e++) {
             T dr = reprojection_values(e,0) - weighed_func_values(e,0);
