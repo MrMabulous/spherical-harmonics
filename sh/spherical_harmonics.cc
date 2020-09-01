@@ -1083,6 +1083,7 @@ void ProjectWeightedSparseSampleStream(
 
   size_t array_ofst = 0;
   for(int p = 0; p < num_problems; p++) {
+    TRACE_SCOPE("solve problem");
     size_t num_problem_values = num_values_array[p];
     Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,num_coeffs>, Eigen::Aligned32> weighed_basis_values(weighed_basis_values_data.data(),
                                                                                                   num_problem_values, num_coeffs);
@@ -1115,186 +1116,189 @@ void ProjectWeightedSparseSampleStream(
       }
     }                                                                       
 
-    // do 10 iterations.
-    for(int iterations = 0; iterations < 10; iterations++) {
-      for (unsigned int i = 0; i < num_problem_values; i++) {
-        // regularization:
-        T regression_weight = 1/(std::max(static_cast<T>(0,0001), reprojection_errors[i]));
-        for(int c=0; c<4; c++) {
-          regression_weighed_func_values(i,c) = regression_weight * weighed_func_values(i,c);
-        }
-        size_t dir_value_idx = index_array[array_ofst + i];
-        for (int l = 0; l <= order; l++) {
-          for (int m = -l; m <= l; m++) {
-            int sh_idx = GetIndex(l, m);
-            regression_weighed_basis_values(i, sh_idx) = regression_weight * weighed_basis_values(i, sh_idx);
+    // do 20 iterations.
+    {
+      TRACE_SCOPE("iterate");
+      for(int iterations = 0; iterations < 20; iterations++) {
+        for (unsigned int i = 0; i < num_problem_values; i++) {
+          // regularization:
+          T regression_weight = 1/(std::max(static_cast<T>(0,0001), reprojection_errors[i]));
+          for(int c=0; c<4; c++) {
+            regression_weighed_func_values(i,c) = regression_weight * weighed_func_values(i,c);
+          }
+          size_t dir_value_idx = index_array[array_ofst + i];
+          for (int l = 0; l <= order; l++) {
+            for (int m = -l; m <= l; m++) {
+              int sh_idx = GetIndex(l, m);
+              regression_weighed_basis_values(i, sh_idx) = regression_weight * weighed_basis_values(i, sh_idx);
+            }
           }
         }
-      }
 
-      // Find the least squares fit for the coefficients of the basis
-      // functions that best match the data
+        // Find the least squares fit for the coefficients of the basis
+        // functions that best match the data
 
-      /*
-      switch(solverType) {
-        case SolverType::kLDLT:
-        case SolverType::kLLT:
-        case SolverType::kPartialPivLU:
-        case SolverType::kFullPivLU:
-          t.noalias() = weighed_basis_values.transpose();
-          t_times_weighed_basis_values.noalias() = t * weighed_basis_values;
-          break;
-        default:
-          // transpose and t * weighed_basis_values not needed
-          break;
-      }
-      */
-      //t.noalias() = weighed_basis_values.transpose();
-      t_times_regression_weighed_basis_values.noalias() = t * regression_weighed_basis_values;
-
-      /*
-      // iterate over three color channels
-      {
-        TRACE_SCOPE("solving");
+        /*
         switch(solverType) {
-          case SolverType::kJacobiSVD: {
-            auto solver = weighed_basis_values.jacobiSvd(Eigen::ComputeThinU | Eigen::ComputeThinV);
-            for (int c=0; c<3; c++) {
-              soln.noalias() = solver.solve(*(weighed_func_values[c]));
-              // Copy everything over to our coeffs array
-              for (unsigned int i = 0; i < num_coeffs; i++) {
-                (*(coeffs_out[c]))[p * num_coeffs + i] = soln(i);
+          case SolverType::kLDLT:
+          case SolverType::kLLT:
+          case SolverType::kPartialPivLU:
+          case SolverType::kFullPivLU:
+            t.noalias() = weighed_basis_values.transpose();
+            t_times_weighed_basis_values.noalias() = t * weighed_basis_values;
+            break;
+          default:
+            // transpose and t * weighed_basis_values not needed
+            break;
+        }
+        */
+        //t.noalias() = weighed_basis_values.transpose();
+        t_times_regression_weighed_basis_values.noalias() = t * regression_weighed_basis_values;
+
+        /*
+        // iterate over three color channels
+        {
+          TRACE_SCOPE("solving");
+          switch(solverType) {
+            case SolverType::kJacobiSVD: {
+              auto solver = weighed_basis_values.jacobiSvd(Eigen::ComputeThinU | Eigen::ComputeThinV);
+              for (int c=0; c<3; c++) {
+                soln.noalias() = solver.solve(*(weighed_func_values[c]));
+                // Copy everything over to our coeffs array
+                for (unsigned int i = 0; i < num_coeffs; i++) {
+                  (*(coeffs_out[c]))[p * num_coeffs + i] = soln(i);
+                }
               }
+              break;
             }
-            break;
-          }
-          case SolverType::kBdcsSVD: {
-            auto solver = weighed_basis_values.bdcSvd(Eigen::ComputeThinU | Eigen::ComputeThinV);
-            for (int c=0; c<3; c++) {
-              soln.noalias() = solver.solve(*(weighed_func_values[c]));
-              // Copy everything over to our coeffs array
-              for (unsigned int i = 0; i < num_coeffs; i++) {
-                (*(coeffs_out[c]))[p * num_coeffs + i] = soln(i);
+            case SolverType::kBdcsSVD: {
+              auto solver = weighed_basis_values.bdcSvd(Eigen::ComputeThinU | Eigen::ComputeThinV);
+              for (int c=0; c<3; c++) {
+                soln.noalias() = solver.solve(*(weighed_func_values[c]));
+                // Copy everything over to our coeffs array
+                for (unsigned int i = 0; i < num_coeffs; i++) {
+                  (*(coeffs_out[c]))[p * num_coeffs + i] = soln(i);
+                }
               }
+              break;
             }
-            break;
-          }
-          case SolverType::kHouseholderQR: {
-            auto solver = weighed_basis_values.householderQr();
-            for (int c=0; c<3; c++) {
-              soln.noalias() = solver.solve(*(weighed_func_values[c]));
-              // Copy everything over to our coeffs array
-              for (unsigned int i = 0; i < num_coeffs; i++) {
-                (*(coeffs_out[c]))[p * num_coeffs + i] = soln(i);
+            case SolverType::kHouseholderQR: {
+              auto solver = weighed_basis_values.householderQr();
+              for (int c=0; c<3; c++) {
+                soln.noalias() = solver.solve(*(weighed_func_values[c]));
+                // Copy everything over to our coeffs array
+                for (unsigned int i = 0; i < num_coeffs; i++) {
+                  (*(coeffs_out[c]))[p * num_coeffs + i] = soln(i);
+                }
               }
+              break;
             }
-            break;
-          }
-          case SolverType::kColPivHouseholderQR: {
-            auto solver = weighed_basis_values.colPivHouseholderQr();
-            for (int c=0; c<3; c++) {
-              soln.noalias() = solver.solve(*(weighed_func_values[c]));
-              // Copy everything over to our coeffs array
-              for (unsigned int i = 0; i < num_coeffs; i++) {
-                (*(coeffs_out[c]))[p * num_coeffs + i] = soln(i);
+            case SolverType::kColPivHouseholderQR: {
+              auto solver = weighed_basis_values.colPivHouseholderQr();
+              for (int c=0; c<3; c++) {
+                soln.noalias() = solver.solve(*(weighed_func_values[c]));
+                // Copy everything over to our coeffs array
+                for (unsigned int i = 0; i < num_coeffs; i++) {
+                  (*(coeffs_out[c]))[p * num_coeffs + i] = soln(i);
+                }
               }
+              break;
             }
-            break;
-          }
-          case SolverType::kFullPivHouseholderQR: {
-            auto solver = weighed_basis_values.fullPivHouseholderQr();
-            for (int c=0; c<3; c++) {
-              soln.noalias() = solver.solve(*(weighed_func_values[c]));
-              // Copy everything over to our coeffs array
-              for (unsigned int i = 0; i < num_coeffs; i++) {
-                (*(coeffs_out[c]))[p * num_coeffs + i] = soln(i);
+            case SolverType::kFullPivHouseholderQR: {
+              auto solver = weighed_basis_values.fullPivHouseholderQr();
+              for (int c=0; c<3; c++) {
+                soln.noalias() = solver.solve(*(weighed_func_values[c]));
+                // Copy everything over to our coeffs array
+                for (unsigned int i = 0; i < num_coeffs; i++) {
+                  (*(coeffs_out[c]))[p * num_coeffs + i] = soln(i);
+                }
               }
+              break;
             }
-            break;
-          }
-          case SolverType::kLDLT: {
-            auto solver = t_times_weighed_basis_values.ldlt();
-            for (int c=0; c<3; c++) {
-              t_times_func_values.noalias() = t * *(weighed_func_values[c]);
-              soln.noalias() = solver.solve(t_times_func_values);
-              // Copy everything over to our coeffs array
-              for (unsigned int i = 0; i < num_coeffs; i++) {
-                (*(coeffs_out[c]))[p * num_coeffs + i] = soln(i);
+            case SolverType::kLDLT: {
+              auto solver = t_times_weighed_basis_values.ldlt();
+              for (int c=0; c<3; c++) {
+                t_times_func_values.noalias() = t * *(weighed_func_values[c]);
+                soln.noalias() = solver.solve(t_times_func_values);
+                // Copy everything over to our coeffs array
+                for (unsigned int i = 0; i < num_coeffs; i++) {
+                  (*(coeffs_out[c]))[p * num_coeffs + i] = soln(i);
+                }
               }
+              break;
             }
-            break;
-          }
-          case SolverType::kLLT: {
-            auto solver = t_times_weighed_basis_values.llt();
-            for (int c=0; c<3; c++) {
-              t_times_func_values.noalias() = t * *(weighed_func_values[c]);
-              soln.noalias() = solver.solve(t_times_func_values);
-              // Copy everything over to our coeffs array
-              for (unsigned int i = 0; i < num_coeffs; i++) {
-                (*(coeffs_out[c]))[p * num_coeffs + i] = soln(i);
+            case SolverType::kLLT: {
+              auto solver = t_times_weighed_basis_values.llt();
+              for (int c=0; c<3; c++) {
+                t_times_func_values.noalias() = t * *(weighed_func_values[c]);
+                soln.noalias() = solver.solve(t_times_func_values);
+                // Copy everything over to our coeffs array
+                for (unsigned int i = 0; i < num_coeffs; i++) {
+                  (*(coeffs_out[c]))[p * num_coeffs + i] = soln(i);
+                }
               }
+              break;
             }
-            break;
-          }
-          case SolverType::kCompleteOrthogonalDecomposition: {
-            auto solver = weighed_basis_values.completeOrthogonalDecomposition();
-            for (int c=0; c<3; c++) {
-              soln.noalias() = solver.solve(*(weighed_func_values[c]));
-              // Copy everything over to our coeffs array
-              for (unsigned int i = 0; i < num_coeffs; i++) {
-                (*(coeffs_out[c]))[p * num_coeffs + i] = soln(i);
+            case SolverType::kCompleteOrthogonalDecomposition: {
+              auto solver = weighed_basis_values.completeOrthogonalDecomposition();
+              for (int c=0; c<3; c++) {
+                soln.noalias() = solver.solve(*(weighed_func_values[c]));
+                // Copy everything over to our coeffs array
+                for (unsigned int i = 0; i < num_coeffs; i++) {
+                  (*(coeffs_out[c]))[p * num_coeffs + i] = soln(i);
+                }
               }
+              break;
             }
-            break;
-          }
-          case SolverType::kPartialPivLU: {
-            auto solver = t_times_weighed_basis_values.partialPivLu();
-            for (int c=0; c<3; c++) {
-              t_times_func_values.noalias() = t * *(weighed_func_values[c]);
-              soln.noalias() = solver.solve(t_times_func_values);
-              // Copy everything over to our coeffs array
-              for (unsigned int i = 0; i < num_coeffs; i++) {
-                (*(coeffs_out[c]))[p * num_coeffs + i] = soln(i);
+            case SolverType::kPartialPivLU: {
+              auto solver = t_times_weighed_basis_values.partialPivLu();
+              for (int c=0; c<3; c++) {
+                t_times_func_values.noalias() = t * *(weighed_func_values[c]);
+                soln.noalias() = solver.solve(t_times_func_values);
+                // Copy everything over to our coeffs array
+                for (unsigned int i = 0; i < num_coeffs; i++) {
+                  (*(coeffs_out[c]))[p * num_coeffs + i] = soln(i);
+                }
               }
+              break;
             }
-            break;
-          }
-          case SolverType::kFullPivLU: {
-            auto solver = t_times_weighed_basis_values.fullPivLu();
-            for (int c=0; c<3; c++) {
-              t_times_func_values.noalias() = t * *(weighed_func_values[c]);
-              soln.noalias() = solver.solve(t_times_func_values);
-              // Copy everything over to our coeffs array
-              for (unsigned int i = 0; i < num_coeffs; i++) {
-                (*(coeffs_out[c]))[p * num_coeffs + i] = soln(i);
+            case SolverType::kFullPivLU: {
+              auto solver = t_times_weighed_basis_values.fullPivLu();
+              for (int c=0; c<3; c++) {
+                t_times_func_values.noalias() = t * *(weighed_func_values[c]);
+                soln.noalias() = solver.solve(t_times_func_values);
+                // Copy everything over to our coeffs array
+                for (unsigned int i = 0; i < num_coeffs; i++) {
+                  (*(coeffs_out[c]))[p * num_coeffs + i] = soln(i);
+                }
               }
+              break;
             }
-            break;
-          }
-          default: {
-            CHECK(false, "Invalid SolverType.");
-            break;
+            default: {
+              CHECK(false, "Invalid SolverType.");
+              break;
+            }
           }
         }
-      }
-      */
-      {
-        TRACE_SCOPE("compute");
-        solver.compute(t_times_regression_weighed_basis_values);
-      }
-      t_times_regression_weighed_func_values.noalias() = t * regression_weighed_func_values;
-      {
-        TRACE_SCOPE("solve");
-        soln.noalias() = solver.solve(t_times_regression_weighed_func_values);
-      }
-      {
-        TRACE_SCOPE("calc_error");
-        reprojection_values.noalias() = weighed_basis_values * soln;
-        for(int e = 0; e < num_problem_values; e++) {
-          T dr = reprojection_values(e,0) - weighed_func_values(e,0);
-          T dg = reprojection_values(e,1) - weighed_func_values(e,1);
-          T db = reprojection_values(e,2) - weighed_func_values(e,2);
-          reprojection_errors[e] = sqrt(dr*dr + dg*dg + db*db);
+        */
+        {
+          TRACE_SCOPE("compute");
+          solver.compute(t_times_regression_weighed_basis_values);
+        }
+        t_times_regression_weighed_func_values.noalias() = t * regression_weighed_func_values;
+        {
+          TRACE_SCOPE("solve");
+          soln.noalias() = solver.solve(t_times_regression_weighed_func_values);
+        }
+        {
+          TRACE_SCOPE("calc_error");
+          reprojection_values.noalias() = weighed_basis_values * soln;
+          for(int e = 0; e < num_problem_values; e++) {
+            T dr = reprojection_values(e,0) - weighed_func_values(e,0);
+            T dg = reprojection_values(e,1) - weighed_func_values(e,1);
+            T db = reprojection_values(e,2) - weighed_func_values(e,2);
+            reprojection_errors[e] = sqrt(dr*dr + dg*dg + db*db);
+          }
         }
       }
     }
