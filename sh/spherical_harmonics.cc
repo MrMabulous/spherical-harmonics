@@ -1150,7 +1150,7 @@ void ProjectWeightedSparseSampleStream(
       }
       */
       //t.noalias() = weighed_basis_values.transpose();
-      t_times_regression_weighed_basis_values.noalias() = t * regrewssion_weighed_basis_values;
+      t_times_regression_weighed_basis_values.noalias() = t * regression_weighed_basis_values;
 
       /*
       // iterate over three color channels
