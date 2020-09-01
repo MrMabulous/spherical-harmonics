@@ -1085,9 +1085,9 @@ void ProjectWeightedSparseSampleStream(
   for(int p = 0; p < num_problems; p++) {
     TRACE_SCOPE("solve problem");
     size_t num_problem_values = num_values_array[p];
-    Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,num_coeffs>, Eigen::Aligned32> basis_values(weighed_basis_values_data.data(),
+    Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,num_coeffs>, Eigen::Aligned32> basis_values(basis_values_data.data(),
                                                                                                   num_problem_values, num_coeffs);
-    Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,4>, Eigen::Aligned32> func_values(weighed_func_value_data.data(),
+    Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,4>, Eigen::Aligned32> func_values(func_value_data.data(),
                                                                                         num_problem_values, 4);
     Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,num_coeffs>, Eigen::Aligned32> regression_weighed_basis_values(regression_weighed_basis_values_data.data(),
                                                                                                             num_problem_values, num_coeffs);
