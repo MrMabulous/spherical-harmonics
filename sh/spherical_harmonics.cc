@@ -1118,7 +1118,7 @@ void ProjectWeightedSparseSampleStream(
     // do 20 iterations.
     {
       TRACE_SCOPE("iterate");
-      for(int iterations = 0; iterations < 20; iterations++) {
+      for(int iterations = 0; iterations < 50; iterations++) {
         for (unsigned int i = 0; i < num_problem_values; i++) {
           T sample_weight = sqrt(weights[array_ofst + i]);
           // regularization:
