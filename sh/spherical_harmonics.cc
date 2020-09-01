@@ -1064,8 +1064,8 @@ void ProjectWeightedSparseSampleStream(
       largest_problem = num_values_array[p];
     }
   }
-  algn_vector<T> weighed_func_value_data(largest_problem * 4);
-  algn_vector<T> weighed_basis_values_data(largest_problem * num_coeffs);
+  algn_vector<T> func_value_data(largest_problem * 4);
+  algn_vector<T> basis_values_data(largest_problem * num_coeffs);
   algn_vector<T> regression_weighed_func_value_data(largest_problem * 4);
   algn_vector<T> regression_weighed_basis_values_data(largest_problem * num_coeffs);
   algn_vector<T> transposed_data(largest_problem * num_coeffs);
@@ -1085,9 +1085,9 @@ void ProjectWeightedSparseSampleStream(
   for(int p = 0; p < num_problems; p++) {
     TRACE_SCOPE("solve problem");
     size_t num_problem_values = num_values_array[p];
-    Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,num_coeffs>, Eigen::Aligned32> weighed_basis_values(weighed_basis_values_data.data(),
+    Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,num_coeffs>, Eigen::Aligned32> basis_values(weighed_basis_values_data.data(),
                                                                                                   num_problem_values, num_coeffs);
-    Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,4>, Eigen::Aligned32> weighed_func_values(weighed_func_value_data.data(),
+    Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,4>, Eigen::Aligned32> func_values(weighed_func_value_data.data(),
                                                                                         num_problem_values, 4);
     Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,num_coeffs>, Eigen::Aligned32> regression_weighed_basis_values(regression_weighed_basis_values_data.data(),
                                                                                                             num_problem_values, num_coeffs);
@@ -1101,16 +1101,15 @@ void ProjectWeightedSparseSampleStream(
 
     for (unsigned int i = 0; i < num_problem_values; i++) {
       reprojection_errors[i] = 1;
-      T sample_weight = sqrt(weights[array_ofst + i]);
       size_t dir_value_idx = index_array[array_ofst + i];
-      weighed_func_values(i,0) = sample_weight * r_values[dir_value_idx];
-      weighed_func_values(i,1) = sample_weight * g_values[dir_value_idx];
-      weighed_func_values(i,2) = sample_weight * b_values[dir_value_idx];
-      weighed_func_values(i,3) = 0;
+      func_values(i,0) = r_values[dir_value_idx];
+      func_values(i,1) = g_values[dir_value_idx];
+      func_values(i,2) = b_values[dir_value_idx];
+      func_values(i,3) = 0;
       for (int l = 0; l <= order; l++) {
         for (int m = -l; m <= l; m++) {
           int sh_idx = GetIndex(l, m);
-          weighed_basis_values(i, sh_idx) = sample_weight * sh_per_dir[dir_value_idx][sh_idx];
+          basis_values(i, sh_idx) = sh_per_dir[dir_value_idx][sh_idx];
           t(sh_idx, i) = sh_per_dir[dir_value_idx][sh_idx];
         }
       }
@@ -1121,16 +1120,18 @@ void ProjectWeightedSparseSampleStream(
       TRACE_SCOPE("iterate");
       for(int iterations = 0; iterations < 20; iterations++) {
         for (unsigned int i = 0; i < num_problem_values; i++) {
+          T sample_weight = sqrt(weights[array_ofst + i]);
           // regularization:
           T regression_weight = 1/(std::max(static_cast<T>(0,0001), reprojection_errors[i]));
+          T weight = sample_weight * regression_weight;
           for(int c=0; c<4; c++) {
-            regression_weighed_func_values(i,c) = regression_weight * weighed_func_values(i,c);
+            regression_weighed_func_values(i,c) = weight * func_values(i,c);
           }
           size_t dir_value_idx = index_array[array_ofst + i];
           for (int l = 0; l <= order; l++) {
             for (int m = -l; m <= l; m++) {
               int sh_idx = GetIndex(l, m);
-              regression_weighed_basis_values(i, sh_idx) = regression_weight * weighed_basis_values(i, sh_idx);
+              regression_weighed_basis_values(i, sh_idx) = weight * basis_values(i, sh_idx);
             }
           }
         }
@@ -1290,11 +1291,11 @@ void ProjectWeightedSparseSampleStream(
           soln.noalias() = solver.solve(t_times_regression_weighed_func_values);
         }
         {
-          reprojection_values.noalias() = weighed_basis_values * soln;
+          reprojection_values.noalias() = basis_values * soln;
           for(int e = 0; e < num_problem_values; e++) {
-            T dr = reprojection_values(e,0) - weighed_func_values(e,0);
-            T dg = reprojection_values(e,1) - weighed_func_values(e,1);
-            T db = reprojection_values(e,2) - weighed_func_values(e,2);
+            T dr = reprojection_values(e,0) - func_values(e,0);
+            T dg = reprojection_values(e,1) - func_values(e,1);
+            T db = reprojection_values(e,2) - func_values(e,2);
             reprojection_errors[e] = sqrt(dr*dr + dg*dg + db*db);
           }
         }
