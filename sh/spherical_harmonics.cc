@@ -1350,9 +1350,9 @@ void AddWeightedSparseSampleStream(
   coeffs_out[2] = b_coeffs_out;
 
   algn_vector<T>* func_values[3];
-  func_values[0] = r_values;
-  func_values[1] = g_values;
-  func_values[2] = b_values;
+  func_values[0] = &r_values;
+  func_values[1] = &g_values;
+  func_values[2] = &b_values;
 
   T normalization_weights[num_coeffs];
 
@@ -1391,7 +1391,7 @@ void AddWeightedSparseSampleStream(
     }
     for(int sh_idx=0; sh_idx<num_coeffs; sh_idx++) {
       T weight = 4.0 * M_PI / normalization_weights[sh_idx];
-      for (int c=0; i<3; c++) {
+      for (int c=0; c<3; c++) {
         (*(coeffs_out[c]))[problem_ofst + sh_idx] *= weight;
       }
     }
