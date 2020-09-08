@@ -1349,11 +1349,6 @@ void AddWeightedSparseSampleStream(
   coeffs_out[1] = g_coeffs_out;
   coeffs_out[2] = b_coeffs_out;
 
-  algn_vector<T>* func_values[3];
-  func_values[0] = &r_values;
-  func_values[1] = &g_values;
-  func_values[2] = &b_values;
-
   T normalization_weights[num_coeffs];
 
   // precompute spherical harmonics coefficients for each direction.
@@ -1382,9 +1377,9 @@ void AddWeightedSparseSampleStream(
         for (int m = -l; m <= l; m++) {
           int sh_idx = GetIndex(l, m);
           T sh = sh_per_dir[dir_value_idx][sh_idx];
-          for (int c=0; i<3; c++) {
-            (*(coeffs_out[c]))[problem_ofst + sh_idx] += (*(func_values[c]))[dir_value_idx] * sh * weights[dir_value_idx];
-          }
+          (*(coeffs_out[0]))[problem_ofst + sh_idx] += r_values[dir_value_idx] * sh * weights[dir_value_idx];
+          (*(coeffs_out[1]))[problem_ofst + sh_idx] += g_values[dir_value_idx] * sh * weights[dir_value_idx];
+          (*(coeffs_out[2]))[problem_ofst + sh_idx] += b_values[dir_value_idx] * sh * weights[dir_value_idx];
           normalization_weights[sh_idx] += weights[dir_value_idx];
         }
       }
