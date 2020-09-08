@@ -1311,6 +1311,94 @@ void ProjectWeightedSparseSampleStream(
   }
 }
 
+template <typename T, int order>
+void AddWeightedSparseSampleStream(
+    int num_problems, const algn_vector<Vector3<T>>& dirs,
+    const algn_vector<T>& r_values, const algn_vector<T>& g_values,
+    const algn_vector<T>& b_values, const algn_vector<T>& weights,
+    const algn_vector<size_t>& index_array, const algn_vector<size_t>& num_values_array,
+    algn_vector<T>* r_coeffs_out, algn_vector<T>* g_coeffs_out,
+    algn_vector<T>* b_coeffs_out) {
+  TRACE_SCOPE("AddWeightedSparseSampleStream()");
+  CHECK(order >= 0, "Order must be at least zero.");
+  CHECK(dirs.size() == r_values.size(),
+      "Directions and r_values must have the same size.");
+  CHECK(dirs.size() == g_values.size(),
+      "Directions and g_values must have the same size.");
+  CHECK(dirs.size() == b_values.size(),
+      "Directions and b_values must have the same size.");
+  CHECK(r_coeffs_out != nullptr,
+      "r_coeffs_out must not be null.");
+  CHECK(g_coeffs_out != nullptr,
+      "g_coeffs_out must not be null.");
+  CHECK(b_coeffs_out != nullptr,
+      "b_coeffs_out must not be null.");
+  CHECK(num_problems == num_values_array.size(),
+      "num_problems must equal the size of num_values_array.");
+  CHECK(order <= kEfficientOrderLimit,
+      "order must be smaller.");
+
+  constexpr int num_coeffs = GetCoefficientCount(order);
+
+  r_coeffs_out->resize(num_coeffs * num_problems);
+  g_coeffs_out->resize(num_coeffs * num_problems);
+  b_coeffs_out->resize(num_coeffs * num_problems);
+
+  algn_vector<T>* coeffs_out[3];
+  coeffs_out[0] = r_coeffs_out;
+  coeffs_out[1] = g_coeffs_out;
+  coeffs_out[2] = b_coeffs_out;
+
+  algn_vector<T>* func_values[3];
+  func_values[0] = r_values;
+  func_values[1] = g_values;
+  func_values[2] = b_values;
+
+  T normalization_weights[num_coeffs];
+
+  // precompute spherical harmonics coefficients for each direction.
+  algn_vector<algn_vector<T>> sh_per_dir;
+  sh_per_dir.resize(dirs.size());
+  for(int d=0; d<dirs.size(); d++) {
+    sh_per_dir[d].resize(num_coeffs);
+    SHEval<T>[order](dirs[d][0], dirs[d][1], dirs[d][2], sh_per_dir[d].data());
+  }
+
+  size_t array_ofst = 0;
+  for(int p = 0; p < num_problems; p++) {
+    size_t problem_ofst = p*num_coeffs;
+    for(int i=0; i<num_coffs; i++) {
+      for(int c=0; c<3; c++) {
+        (*(coeffs_out[c]))[problem_ofst + i] = static_cast<T>(0.0);
+      }
+    }
+    size_t num_problem_values = num_values_array[p];
+    memset(normalization_weights, 0, sizeof(normalization_weights));
+    for(int i=0; i<num_problem_values; i++) {
+      size_t dir_value_idx = index_array[array_ofst + i];
+      // evaluate the SH basis functions up to band O, scale them by the
+      // function's value and accumulate them over all samples
+      for (int l = 0; l <= order; l++) {
+        for (int m = -l; m <= l; m++) {
+          int sh_idx = GetIndex(l, m);
+          T sh = sh_per_dir[dir_value_idx][sh_idx];
+          for (int c=0; i<3; c++) {
+            (*(coeffs_out[c]))[problem_ofst + sh_idx] += (*(func_values[c]))[dir_value_idx] * sh * weights[dir_value_idx];
+          }
+          normalization_weights[sh_idx] += weights[dir_value_idx];
+        }
+      }
+    }
+    for(int sh_idx=0; sh_idx<num_coeffs; sh_idx++) {
+      T weight = 4.0 * M_PI / normalization_weights[sh_idx];
+      for (int c=0; i<3; c++) {
+        (*(coeffs_out[c]))[problem_ofst + sh_idx] *= weight;
+      }
+    }
+    array_ofst += num_problem_values;
+  }
+}
+
 template <typename T, typename S>
 T EvalSHSum(int order, const algn_vector<T>& coeffs,
             S phi, S theta) {
@@ -1644,6 +1732,14 @@ template void ProjectWeightedSparseSampleStream<float,6>(
     algn_vector<float>* r_coeffs_out, algn_vector<float>* g_coeffs_out,
     algn_vector<float>* b_coeffs_out, SolverType solverType);
 */
+
+template void AddWeightedSparseSampleStream<float,4>(
+    int num_problems, const algn_vector<Vector3<float>>& dirs,
+    const algn_vector<float>& r_values, const algn_vector<float>& g_values,
+    const algn_vector<float>& b_values, const algn_vector<float>& weights,
+    const algn_vector<size_t>& index_array, const algn_vector<size_t>& num_values_array,
+    algn_vector<float>* r_coeffs_out, algn_vector<float>* g_coeffs_out,
+    algn_vector<float>* b_coeffs_out);
 
 template double EvalSHSum<double, double>(
     int order,

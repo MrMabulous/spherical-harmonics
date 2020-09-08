@@ -1,3 +1,5 @@
+load(":windows_dll_library.bzl", "windows_dll_library")
+
 config_setting(
     name = "windows",
     constraint_values = [
@@ -40,6 +42,15 @@ cc_library(
         ":windows": ["_USE_MATH_DEFINES",],
     }),
     visibility = ["//visibility:public"],
+)
+
+windows_dll_library(
+    name = "spherical_harmonics_lib",
+    srcs = ["spherical_harmonics_lib.cc"],
+    deps = [":spherical_harmonics"],
+    # Define COMPILING_DLL to export symbols during compiling the DLL.
+    # See hello-library.h
+    copts = ["/DCOMPILING_DLL"],
 )
 
 cc_library(
