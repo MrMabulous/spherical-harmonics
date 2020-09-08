@@ -1362,7 +1362,7 @@ void AddWeightedSparseSampleStream(
   size_t array_ofst = 0;
   for(int p = 0; p < num_problems; p++) {
     size_t problem_ofst = p*num_coeffs;
-    for(int i=0; i<num_coffs; i++) {
+    for(int i=0; i<num_coeffs; i++) {
       for(int c=0; c<3; c++) {
         (*(coeffs_out[c]))[problem_ofst + i] = static_cast<T>(0.0);
       }
