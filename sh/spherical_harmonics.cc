@@ -1371,15 +1371,17 @@ void AddWeightedSparseSampleStream(
     memset(normalization_weights, 0, sizeof(normalization_weights));
     for(int i=0; i<num_problem_values; i++) {
       size_t dir_value_idx = index_array[array_ofst + i];
+      T weight = weights[array_ofst + i];
       // evaluate the SH basis functions up to band O, scale them by the
       // function's value and accumulate them over all samples
       for (int l = 0; l <= order; l++) {
         for (int m = -l; m <= l; m++) {
           int sh_idx = GetIndex(l, m);
           T sh = sh_per_dir[dir_value_idx][sh_idx];
-          (*(coeffs_out[0]))[problem_ofst + sh_idx] += r_values[dir_value_idx] * sh * weights[dir_value_idx];
-          (*(coeffs_out[1]))[problem_ofst + sh_idx] += g_values[dir_value_idx] * sh * weights[dir_value_idx];
-          (*(coeffs_out[2]))[problem_ofst + sh_idx] += b_values[dir_value_idx] * sh * weights[dir_value_idx];
+          T weighted_sh = sh * weight;
+          (*(coeffs_out[0]))[problem_ofst + sh_idx] += r_values[dir_value_idx] * weighted_sh;
+          (*(coeffs_out[1]))[problem_ofst + sh_idx] += g_values[dir_value_idx] * weighted_sh;
+          (*(coeffs_out[2]))[problem_ofst + sh_idx] += b_values[dir_value_idx] * weighted_sh;
           normalization_weights[sh_idx] += weights[dir_value_idx];
         }
       }
