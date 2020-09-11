@@ -1382,7 +1382,7 @@ void AddWeightedSparseSampleStream(
           (*(coeffs_out[0]))[problem_ofst + sh_idx] += r_values[dir_value_idx] * weighted_sh;
           (*(coeffs_out[1]))[problem_ofst + sh_idx] += g_values[dir_value_idx] * weighted_sh;
           (*(coeffs_out[2]))[problem_ofst + sh_idx] += b_values[dir_value_idx] * weighted_sh;
-          normalization_weights[sh_idx] += weights[dir_value_idx];
+          normalization_weights[sh_idx] += weighted_sh;
         }
       }
     }
