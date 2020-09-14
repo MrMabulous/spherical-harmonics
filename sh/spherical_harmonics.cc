@@ -1742,7 +1742,7 @@ template void AddWeightedSparseSampleStream<float,4>(
     const algn_vector<float>& b_values, const algn_vector<float>& weights,
     const algn_vector<size_t>& index_array, const algn_vector<size_t>& num_values_array,
     algn_vector<float>* r_coeffs_out, algn_vector<float>* g_coeffs_out,
-    algn_vector<float>* b_coeffs_out);
+    algn_vector<float>* b_coeffs_out, int min_samples_per_basis);
 
 template double EvalSHSum<double, double>(
     int order,
