@@ -1140,12 +1140,14 @@ void ProjectWeightedSparseSampleStream(
       TRACE_SCOPE("iterate");
       for(int iterations = 0; iterations < 10; iterations++) {
         for (unsigned int i = 0; i < num_problem_values; i++) {
-          T sample_weight = sqrt(weights[array_ofst + i]);
+          T sample_weight = weights[array_ofst + i];
+          T sqrt_weight = static_cast<T>(sqrt(abs(sample_weight)));
+          T sample_weight_sign = static_cast<T>(sample_weight < 0 ? -1.0 : 1.0);
           // regularization:
           T regression_weight = 1/(std::max(static_cast<T>(0,0001), reprojection_errors[i]));
-          T weight = sample_weight * regression_weight;
+          T weight = sqrt_weight * regression_weight;
           for(int c=0; c<4; c++) {
-            regression_weighed_func_values(i,c) = weight * func_values(i,c);
+            regression_weighed_func_values(i,c) = sample_weight_sign * weight * func_values(i,c);
           }
           size_t dir_value_idx = index_array[array_ofst + i];
           for (int l = 0; l <= max_problem_order; l++) {
