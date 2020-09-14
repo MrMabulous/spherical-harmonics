@@ -1091,6 +1091,14 @@ void ProjectWeightedSparseSampleStream(
   for(int p = 0; p < num_problems; p++) {
     TRACE_SCOPE("solve problem");
     size_t num_problem_values = num_values_array[p];
+    if(num_problem_values == 0) {
+      for(int c=0; c<3; c++) {
+        for (unsigned int i = 0; i < num_coeffs; i++) {
+          (*(coeffs_out[c]))[p * num_coeffs + i] = static_cast<T>(0.0);
+        }
+      }
+      continue;
+    }
     int max_problem_order =
         std::min(order, GetOrderFromCoefficientCount(num_problem_values /
             static_cast<float>(min_samples_per_basis)));
