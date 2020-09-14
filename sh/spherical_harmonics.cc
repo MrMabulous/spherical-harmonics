@@ -1105,19 +1105,19 @@ void ProjectWeightedSparseSampleStream(
     int max_problem_coeffs = GetCoefficientCount(max_problem_order);
 
 
-    Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic, Dynamic>, Eigen::Aligned32> basis_values(basis_values_data.data(),
-                                                                                        num_problem_values, max_problem_coeffs);
-    Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,4>, Eigen::Aligned32> func_values(func_value_data.data(),
-                                                                                num_problem_values, 4);
-    Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,Dynamic>, Eigen::Aligned32> regression_weighed_basis_values(regression_weighed_basis_values_data.data(),
-                                                                                                          num_problem_values, max_problem_coeffs);
-    Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,4>, Eigen::Aligned32> regression_weighed_func_values(regression_weighed_func_value_data.data(),
-                                                                                                   num_problem_values, 4);
-    Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,4>, Eigen::Aligned32> reprojection_values(reprojection_values_data.data(),
-                                                                                        num_problem_values, 4);
+    Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,Eigen::Dynamic>, Eigen::Aligned32> basis_values(basis_values_data.data(),
+                                                                                               num_problem_values, max_problem_coeffs);
+    Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,4>,Eigen::Aligned32> func_values(func_value_data.data(),
+                                                                               num_problem_values, 4);
+    Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,Eigen::Dynamic>, Eigen::Aligned32> regression_weighed_basis_values(regression_weighed_basis_values_data.data(),
+                                                                                                                 num_problem_values, max_problem_coeffs);
+    Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,4>,Eigen::Aligned32> regression_weighed_func_values(regression_weighed_func_value_data.data(),
+                                                                                                  num_problem_values, 4);
+    Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,4>,Eigen::Aligned32> reprojection_values(reprojection_values_data.data(),
+                                                                                       num_problem_values, 4);
     // unweighed transpose of basis values:
-    Eigen::Map<Eigen::Matrix<T,max_problem_coeffs,Eigen::Dynamic>, Eigen::Aligned32> t(transposed_data.data(),
-                                                                                       max_problem_coeffs, num_problem_values);
+    Eigen::Map<Eigen::Matrix<T,max_problem_coeffs, Eigen::Dynamic>, Eigen::Aligned32> t(transposed_data.data(),
+                                                                                        max_problem_coeffs, num_problem_values);
 
     for (unsigned int i = 0; i < num_problem_values; i++) {
       reprojection_errors[i] = 1;
