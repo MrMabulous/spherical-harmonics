@@ -519,6 +519,11 @@ void ComputeBandRotation(int l, algn_vector<MatrixX<T>>* rotations) {
 }
 
 }  // namespace
+
+int GetOrderFromCoefficientCount(float count) {
+    return std::max(0, static_cast<int>(sqrtf(count) - 1));
+}
+
 template <typename S>
 Vector3<S> ToVector(S phi, S theta) {
   S r = sin(theta);

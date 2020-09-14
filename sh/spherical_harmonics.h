@@ -93,9 +93,7 @@ constexpr int GetCoefficientCount(int order) {
   return (order + 1) * (order + 1);
 }
 
-int GetOrderFromCoefficientCount(float count) {
-    return std::max(0, static_cast<int>(sqrtf(count) - 1));
-}
+int GetOrderFromCoefficientCount(float count);
 
 // Get the one dimensional index associated with a particular degree @l
 // and order @m. This is the index that can be used to access the Coeffs
