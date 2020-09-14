@@ -1318,7 +1318,7 @@ void AddWeightedSparseSampleStream(
     const algn_vector<T>& b_values, const algn_vector<T>& weights,
     const algn_vector<size_t>& index_array, const algn_vector<size_t>& num_values_array,
     algn_vector<T>* r_coeffs_out, algn_vector<T>* g_coeffs_out,
-    algn_vector<T>* b_coeffs_out) {
+    algn_vector<T>* b_coeffs_out, int min_samples_per_basis) {
   TRACE_SCOPE("AddWeightedSparseSampleStream()");
   CHECK(order >= 0, "Order must be at least zero.");
   CHECK(dirs.size() == r_values.size(),
@@ -1361,20 +1361,26 @@ void AddWeightedSparseSampleStream(
 
   size_t array_ofst = 0;
   for(int p = 0; p < num_problems; p++) {
+    size_t num_problem_values = num_values_array[p];
+    int max_problem_order =
+        GetOrderFromCoefficientCount(num_problem_values /
+                                     static_cast<float>(min_samples_per_basis));
+    int max_problem_coeffs = GetCoefficientCount(max_problem_order);
+
     size_t problem_ofst = p*num_coeffs;
     for(int i=0; i<num_coeffs; i++) {
       for(int c=0; c<3; c++) {
         (*(coeffs_out[c]))[problem_ofst + i] = static_cast<T>(0.0);
       }
     }
-    size_t num_problem_values = num_values_array[p];
+
     memset(normalization_weights, 0, sizeof(normalization_weights));
     for(int i=0; i<num_problem_values; i++) {
       size_t dir_value_idx = index_array[array_ofst + i];
       T weight = weights[array_ofst + i];
       // evaluate the SH basis functions up to band O, scale them by the
       // function's value and accumulate them over all samples
-      for (int l = 0; l <= order; l++) {
+      for (int l = 0; l <= max_problem_order; l++) {
         for (int m = -l; m <= l; m++) {
           int sh_idx = GetIndex(l, m);
           T sh = sh_per_dir[dir_value_idx][sh_idx];
@@ -1386,7 +1392,7 @@ void AddWeightedSparseSampleStream(
         }
       }
     }
-    for(int sh_idx=0; sh_idx<num_coeffs; sh_idx++) {
+    for(int sh_idx=0; sh_idx<max_problem_coeffs; sh_idx++) {
       T weight = 4.0 * M_PI / normalization_weights[sh_idx];
       for (int c=0; c<3; c++) {
         (*(coeffs_out[c]))[problem_ofst + sh_idx] *= weight;

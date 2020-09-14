@@ -93,6 +93,10 @@ constexpr int GetCoefficientCount(int order) {
   return (order + 1) * (order + 1);
 }
 
+constexpr int GetOrderFromCoefficientCount(float count) {
+    return static_cast<int>(sqrtf(count) - 1);
+}
+
 // Get the one dimensional index associated with a particular degree @l
 // and order @m. This is the index that can be used to access the Coeffs
 // returned by SHSolver.
@@ -248,7 +252,7 @@ void AddWeightedSparseSampleStream(
     const algn_vector<T>& b_values, const algn_vector<T>& weights,
     const algn_vector<size_t>& index_array, const algn_vector<size_t>& num_values_array,
     algn_vector<T>* r_coeffs_out, algn_vector<T>* g_coeffs_out,
-    algn_vector<T>* b_coeffs_out);
+    algn_vector<T>* b_coeffs_out, int min_samples_per_basis = 2);
 
 // Evaluate the already computed coefficients for the SH basis functions up
 // to @order, at the coordinates @phi and @theta. The length of the @coeffs
