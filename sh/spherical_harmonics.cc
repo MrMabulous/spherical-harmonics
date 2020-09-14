@@ -1116,8 +1116,8 @@ void ProjectWeightedSparseSampleStream(
     Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,4>,Eigen::Aligned32> reprojection_values(reprojection_values_data.data(),
                                                                                        num_problem_values, 4);
     // unweighed transpose of basis values:
-    Eigen::Map<Eigen::Matrix<T,max_problem_coeffs, Eigen::Dynamic>, Eigen::Aligned32> t(transposed_data.data(),
-                                                                                        max_problem_coeffs, num_problem_values);
+    Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,Eigen::Dynamic>, Eigen::Aligned32> t(transposed_data.data(),
+                                                                                   max_problem_coeffs, num_problem_values);
 
     for (unsigned int i = 0; i < num_problem_values; i++) {
       reprojection_errors[i] = 1;
