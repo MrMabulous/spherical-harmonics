@@ -1397,10 +1397,12 @@ void AddWeightedSparseSampleStream(
         }
       }
     }
-    for(int sh_idx=0; sh_idx<max_problem_coeffs; sh_idx++) {
-      T weight = 4.0 * M_PI / normalization_weights[sh_idx];
-      for (int c=0; c<3; c++) {
-        (*(coeffs_out[c]))[problem_ofst + sh_idx] *= weight;
+    if(num_problem_values > 0) {
+      for(int sh_idx=0; sh_idx<max_problem_coeffs; sh_idx++) {
+        T weight = 4.0 * M_PI / normalization_weights[sh_idx];
+        for (int c=0; c<3; c++) {
+          (*(coeffs_out[c]))[problem_ofst + sh_idx] *= weight;
+        }
       }
     }
     array_ofst += num_problem_values;
