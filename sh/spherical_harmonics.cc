@@ -1369,7 +1369,7 @@ void AddWeightedSparseSampleStream(
     size_t num_problem_values = num_values_array[p];
     int max_problem_order =
         std::min(order, GetOrderFromCoefficientCount(num_problem_values /
-            static_cast<float>(min_samples_per_basis));
+            static_cast<float>(min_samples_per_basis)));
     int max_problem_coeffs = GetCoefficientCount(max_problem_order);
 
     size_t problem_ofst = p*num_coeffs;
