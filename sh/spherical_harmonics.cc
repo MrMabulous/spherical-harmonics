@@ -1021,7 +1021,8 @@ void ProjectWeightedSparseSampleStream(
     const algn_vector<T>& b_values, const algn_vector<T>& weights,
     const algn_vector<size_t>& index_array, const algn_vector<size_t>& num_values_array,
     algn_vector<T>* r_coeffs_out, algn_vector<T>* g_coeffs_out,
-    algn_vector<T>* b_coeffs_out, SolverType solverType) {
+    algn_vector<T>* b_coeffs_out, SolverType solverType,
+    int min_samples_per_basis) {
   TRACE_SCOPE("ProjectWeightedSparseSampleStream()");
   CHECK(order >= 0, "Order must be at least zero.");
   CHECK(dirs.size() == r_values.size(),
@@ -1090,19 +1091,25 @@ void ProjectWeightedSparseSampleStream(
   for(int p = 0; p < num_problems; p++) {
     TRACE_SCOPE("solve problem");
     size_t num_problem_values = num_values_array[p];
-    Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,num_coeffs>, Eigen::Aligned32> basis_values(basis_values_data.data(),
-                                                                                                  num_problem_values, num_coeffs);
+    int max_problem_order =
+        std::min(order, GetOrderFromCoefficientCount(num_problem_values /
+            static_cast<float>(min_samples_per_basis)));
+    int max_problem_coeffs = GetCoefficientCount(max_problem_order);
+
+
+    Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic, Dynamic>, Eigen::Aligned32> basis_values(basis_values_data.data(),
+                                                                                        num_problem_values, max_problem_coeffs);
     Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,4>, Eigen::Aligned32> func_values(func_value_data.data(),
-                                                                                        num_problem_values, 4);
-    Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,num_coeffs>, Eigen::Aligned32> regression_weighed_basis_values(regression_weighed_basis_values_data.data(),
-                                                                                                            num_problem_values, num_coeffs);
+                                                                                num_problem_values, 4);
+    Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,Dynamic>, Eigen::Aligned32> regression_weighed_basis_values(regression_weighed_basis_values_data.data(),
+                                                                                                          num_problem_values, max_problem_coeffs);
     Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,4>, Eigen::Aligned32> regression_weighed_func_values(regression_weighed_func_value_data.data(),
-                                                                                                  num_problem_values, 4);
+                                                                                                   num_problem_values, 4);
     Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,4>, Eigen::Aligned32> reprojection_values(reprojection_values_data.data(),
                                                                                         num_problem_values, 4);
     // unweighed transpose of basis values:
-    Eigen::Map<Eigen::Matrix<T,num_coeffs,Eigen::Dynamic>, Eigen::Aligned32> t(transposed_data.data(),
-                                                                              num_coeffs, num_problem_values);
+    Eigen::Map<Eigen::Matrix<T,max_problem_coeffs,Eigen::Dynamic>, Eigen::Aligned32> t(transposed_data.data(),
+                                                                                       max_problem_coeffs, num_problem_values);
 
     for (unsigned int i = 0; i < num_problem_values; i++) {
       reprojection_errors[i] = 1;
@@ -1111,7 +1118,7 @@ void ProjectWeightedSparseSampleStream(
       func_values(i,1) = g_values[dir_value_idx];
       func_values(i,2) = b_values[dir_value_idx];
       func_values(i,3) = 0;
-      for (int l = 0; l <= order; l++) {
+      for (int l = 0; l <= max_problem_order; l++) {
         for (int m = -l; m <= l; m++) {
           int sh_idx = GetIndex(l, m);
           basis_values(i, sh_idx) = sh_per_dir[dir_value_idx][sh_idx];
@@ -1120,10 +1127,10 @@ void ProjectWeightedSparseSampleStream(
       }
     }                                                                       
 
-    // do 20 iterations.
+    // do 10 iterations.
     {
       TRACE_SCOPE("iterate");
-      for(int iterations = 0; iterations < 50; iterations++) {
+      for(int iterations = 0; iterations < 10; iterations++) {
         for (unsigned int i = 0; i < num_problem_values; i++) {
           T sample_weight = sqrt(weights[array_ofst + i]);
           // regularization:
@@ -1133,7 +1140,7 @@ void ProjectWeightedSparseSampleStream(
             regression_weighed_func_values(i,c) = weight * func_values(i,c);
           }
           size_t dir_value_idx = index_array[array_ofst + i];
-          for (int l = 0; l <= order; l++) {
+          for (int l = 0; l <= max_problem_order; l++) {
             for (int m = -l; m <= l; m++) {
               int sh_idx = GetIndex(l, m);
               regression_weighed_basis_values(i, sh_idx) = weight * basis_values(i, sh_idx);
@@ -1308,8 +1315,11 @@ void ProjectWeightedSparseSampleStream(
     }
     // Copy everything over to our coeffs array
     for(int c=0; c<3; c++) {
-      for (unsigned int i = 0; i < num_coeffs; i++) {
+      for (unsigned int i = 0; i < max_problem_coeffs; i++) {
         (*(coeffs_out[c]))[p * num_coeffs + i] = soln(i, c);
+      }
+      for (unsigned int i = max_problem_coeffs + 1; i < num_coeffs; i++) {
+        (*(coeffs_out[c]))[p * num_coeffs + i] = static_cast<T>(0.0);
       }
     }
     array_ofst += num_problem_values;
@@ -1711,7 +1721,7 @@ template void ProjectWeightedSparseSampleStream<float,4>(
     const algn_vector<float>& b_values, const algn_vector<float>& weights,
     const algn_vector<size_t>& index_array, const algn_vector<size_t>& num_values_array,
     algn_vector<float>* r_coeffs_out, algn_vector<float>* g_coeffs_out,
-    algn_vector<float>* b_coeffs_out, SolverType solverType);
+    algn_vector<float>* b_coeffs_out, SolverType solverType, int min_samples_per_basis);
 /*
 template void ProjectWeightedSparseSampleStream<double,5>(
     int num_problems, const algn_vector<Vector3<double>>& dirs,
