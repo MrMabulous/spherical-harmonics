@@ -1517,7 +1517,7 @@ void ProjectConstrainedWeightedSparseSampleStream(
           upper_bound *= 2;
         } else {
           lower_bound = gamma;
-          gamma = (upper_bound + lower_bound * static_cast<T>(0.5);
+          gamma = (upper_bound + lower_bound) * static_cast<T>(0.5);
         }
       }
     }
