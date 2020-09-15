@@ -1406,7 +1406,8 @@ void ProjectConstrainedWeightedSparseSampleStream(
   Eigen::Matrix<T,num_coeffs,4> t_times_weighed_func_values;
   Eigen::Matrix<T,num_coeffs,num_coeffs> t_times_weighed_basis_values;
 
-  Eigen::Matrix<T, 1, 4> energy;
+  Eigen::Matrix<T, 1, 4> energy_rgba;
+  T energy;
 
   //Eigen::LDLT<MatrixX<T>> solver(num_coeffs);
   Eigen::LLT<Eigen::Matrix<T,num_coeffs,num_coeffs>> solver(num_coeffs);
@@ -1444,7 +1445,7 @@ void ProjectConstrainedWeightedSparseSampleStream(
     Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,Eigen::Dynamic>, Eigen::Aligned32> t(transposed_data.data(),
                                                                                    max_problem_coeffs, num_problem_values);
 
-    energy.setZero();
+    energy_rgba.setZero();
     for (unsigned int i = 0; i < num_problem_values; i++) {
       reprojection_errors[i] = 1;
       size_t dir_value_idx = index_array[array_ofst + i];
@@ -1452,9 +1453,9 @@ void ProjectConstrainedWeightedSparseSampleStream(
       func_values(i,1) = g_values[dir_value_idx];
       func_values(i,2) = b_values[dir_value_idx];
       func_values(i,3) = 0;
-      energy(0) += r_values[dir_value_idx] * r_values[dir_value_idx];
-      energy(1) += g_values[dir_value_idx] * g_values[dir_value_idx];
-      energy(2) += b_values[dir_value_idx] * b_values[dir_value_idx];
+      energy_rgba(0) += r_values[dir_value_idx] * r_values[dir_value_idx];
+      energy_rgba(1) += g_values[dir_value_idx] * g_values[dir_value_idx];
+      energy_rgba(2) += b_values[dir_value_idx] * b_values[dir_value_idx];
       T sample_weight = weights[array_ofst + i];
       T sqrt_weight = static_cast<T>(sqrt(abs(sample_weight)));
       T sample_weight_sign = static_cast<T>(sample_weight < 0 ? -1.0 : 1.0);
@@ -1471,7 +1472,8 @@ void ProjectConstrainedWeightedSparseSampleStream(
       }
     }
 
-    energy *= 4.0 * M_PI / num_problem_values;
+    energy_rgba *= 4.0 * M_PI / num_problem_values;
+    energy = std::max(std::max(energy_rgba(0), energy_rgba(1)), energy_rgba(2));
     T gamma = static_cast<T>(1.0);
     T upper_bound = gamma * 2;
     T lower_bound = static_cast<T>(0.0);
@@ -1499,7 +1501,7 @@ void ProjectConstrainedWeightedSparseSampleStream(
         }
         t_times_weighed_func_values.noalias() = t * weighed_func_values;
         {
-          soln.noalias() = solver.solve(t_times_regression_weighed_func_values);
+          soln.noalias() = solver.solve(t_times_weighed_func_values);
         }
         T coeff_dot = soln.dot(soln);
         if(coeff_dot < energy) {
