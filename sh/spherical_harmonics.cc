@@ -1979,6 +1979,14 @@ template void ProjectConstrainedWeightedSparseSampleStream<float,4>(
     algn_vector<float>* r_coeffs_out, algn_vector<float>* g_coeffs_out,
     algn_vector<float>* b_coeffs_out, SolverType solverType, int min_samples_per_basis);
 
+template void ProjectConstrainedWeightedSparseSampleStream<double,4>(
+    int num_problems, const algn_vector<Vector3<double>>& dirs,
+    const algn_vector<double>& r_values, const algn_vector<double>& g_values,
+    const algn_vector<double>& b_values, const algn_vector<double>& weights,
+    const algn_vector<size_t>& index_array, const algn_vector<size_t>& num_values_array,
+    algn_vector<double>* r_coeffs_out, algn_vector<double>* g_coeffs_out,
+    algn_vector<double>* b_coeffs_out, SolverType solverType, int min_samples_per_basis);
+
 template double EvalSHSum<double, double>(
     int order,
     const algn_vector<double>& coeffs,
