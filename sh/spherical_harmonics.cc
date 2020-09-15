@@ -1505,7 +1505,7 @@ void ProjectConstrainedWeightedSparseSampleStream(
           soln.noalias() = solver.solve(t_times_weighed_func_values);
         }
         for(int c=0; c<3; c++) {
-          Eigen::Matrix<T,num_coeffs,1> column = soln.column(c);
+          Eigen::Matrix<T,num_coeffs,1> column = soln.col(c);
           coeff_dot_rgba(c) = column.dot(column);
         }
         T coeff_dot = std::max(std::max(coeff_dot_rgba(0),coeff_dot_rgba(1)),coeff_dot_rgba(2));
