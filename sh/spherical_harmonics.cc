@@ -1406,9 +1406,9 @@ void ProjectConstrainedWeightedSparseSampleStream(
   Eigen::Matrix<T,num_coeffs,4> t_times_weighed_func_values;
   Eigen::Matrix<T,num_coeffs,num_coeffs> t_times_weighed_basis_values;
 
-  Eigen::Matrix<T, 1, 4> energy_rgba;
-  T energy;
-  Eigen::Matrix<T, 1, 4> coeff_dot_rgba;
+  Eigen::Matrix<T, 1, 3> energy_rgba;
+  Eigen::Matrix<T, 1, 3> coeff_dot_rgba;
+  Eigen::Matrix<T, 1, 3> gamma, upper_bound, lower_bound;
 
   //Eigen::LDLT<MatrixX<T>> solver(num_coeffs);
   Eigen::LLT<Eigen::Matrix<T,num_coeffs,num_coeffs>> solver(num_coeffs);
@@ -1474,11 +1474,13 @@ void ProjectConstrainedWeightedSparseSampleStream(
     }
 
     energy_rgba *= 4.0 * M_PI / num_problem_values;
-    energy = std::min(std::min(energy_rgba(0), energy_rgba(1)), energy_rgba(2));
-    T gamma = static_cast<T>(1.0);
-    T upper_bound = gamma * 2;
-    T lower_bound = static_cast<T>(0.0);
-    bool initial_condition_found = false;
+    gamma.setOnes();
+    upper_bound = gamma * 2;
+    lower_bound.setZero();
+    bool initial_condition_found[3];
+    initial_condition_found[0]=false;
+    initial_condition_found[1]=false;
+    initial_condition_found[2]=false;
 
     // do 32 binary search iterations for largest gamma for which
     // the dot product of the solution is smaller than the function energy
@@ -1507,18 +1509,17 @@ void ProjectConstrainedWeightedSparseSampleStream(
         for(int c=0; c<3; c++) {
           Eigen::Matrix<T,num_coeffs,1> column = soln.col(c);
           coeff_dot_rgba(c) = column.dot(column);
-        }
-        T coeff_dot = std::max(std::max(coeff_dot_rgba(0),coeff_dot_rgba(1)),coeff_dot_rgba(2));
-        if(coeff_dot < energy) {
-          upper_bound = gamma;
-          gamma = (upper_bound + lower_bound) * static_cast<T>(0.5);
-          initial_condition_found = true;
-        } else if(!initial_condition_found) {
-          gamma = upper_bound;
-          upper_bound *= 2;
-        } else {
-          lower_bound = gamma;
-          gamma = (upper_bound + lower_bound) * static_cast<T>(0.5);
+          if(coeff_dot_rgba(c) < energy_rgba(c)) {
+            upper_bound(c) = gamma(c);
+            gamma(c) = (upper_bound(c) + lower_bound(c)) * static_cast<T>(0.5);
+            initial_condition_found[c] = true;
+          } else if(!initial_condition_found[c]) {
+            gamma(c) = upper_bound(c);
+            upper_bound(c) *= 2;
+          } else {
+            lower_bound(c) = gamma(c);
+            gamma(c) = (upper_bound(c) + lower_bound(c)) * static_cast<T>(0.5);
+          }
         }
       }
     }
