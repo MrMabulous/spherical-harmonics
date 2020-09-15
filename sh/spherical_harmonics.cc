@@ -1153,7 +1153,10 @@ void ProjectWeightedSparseSampleStream(
           for (int l = 0; l <= max_problem_order; l++) {
             for (int m = -l; m <= l; m++) {
               int sh_idx = GetIndex(l, m);
-              regression_weighed_basis_values(i, sh_idx) = weight * basis_values(i, sh_idx);
+              if(l==1 && m==0)
+                regression_weighed_basis_values(i, sh_idx) = 0;
+              else
+                regression_weighed_basis_values(i, sh_idx) = weight * basis_values(i, sh_idx);
             }
           }
         }
