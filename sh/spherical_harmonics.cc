@@ -1406,9 +1406,9 @@ void ProjectConstrainedWeightedSparseSampleStream(
   Eigen::Matrix<T,num_coeffs,4> t_times_weighed_func_values;
   Eigen::Matrix<T,num_coeffs,num_coeffs> t_times_weighed_basis_values;
 
-  Eigen::Matrix<T, 1, 3> energy_rgba;
-  Eigen::Matrix<T, 1, 3> coeff_dot_rgba;
-  T gamma, energy, coeff_dot, upper_bound, lower_bound;
+  Eigen::Matrix<T, 1, 3> energy_rgb;
+  Eigen::Matrix<T, 1, 3> coeff_dot_rgb;
+  T gamma, energy, coeff_dot, upper_bound, lower_bound, energy_weight;
 
   //Eigen::LDLT<MatrixX<T>> solver(num_coeffs);
   Eigen::LLT<Eigen::Matrix<T,num_coeffs,num_coeffs>> solver(num_coeffs);
@@ -1446,7 +1446,9 @@ void ProjectConstrainedWeightedSparseSampleStream(
     Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,Eigen::Dynamic>, Eigen::Aligned32> t(transposed_data.data(),
                                                                                    max_problem_coeffs, num_problem_values);
 
-    energy_rgba.setZero();
+    energy_rgb.setZero();
+    energy_weight = 0;
+    energy_rgb_weights.setZero();
     for (unsigned int i = 0; i < num_problem_values; i++) {
       reprojection_errors[i] = 1;
       size_t dir_value_idx = index_array[array_ofst + i];
@@ -1454,10 +1456,11 @@ void ProjectConstrainedWeightedSparseSampleStream(
       func_values(i,1) = g_values[dir_value_idx];
       func_values(i,2) = b_values[dir_value_idx];
       func_values(i,3) = 0;
-      energy_rgba(0) += r_values[dir_value_idx] * r_values[dir_value_idx];
-      energy_rgba(1) += g_values[dir_value_idx] * g_values[dir_value_idx];
-      energy_rgba(2) += b_values[dir_value_idx] * b_values[dir_value_idx];
+      energy_rgb(0) += r_values[dir_value_idx] * r_values[dir_value_idx];
+      energy_rgb(1) += g_values[dir_value_idx] * g_values[dir_value_idx];
+      energy_rgb(2) += b_values[dir_value_idx] * b_values[dir_value_idx];
       T sample_weight = weights[array_ofst + i];
+      energy_weight += sample_weight;
       T sqrt_weight = static_cast<T>(sqrt(abs(sample_weight)));
       T sample_weight_sign = static_cast<T>(sample_weight < 0 ? -1.0 : 1.0);
       for(int c=0; c<4; c++) {
@@ -1472,8 +1475,8 @@ void ProjectConstrainedWeightedSparseSampleStream(
         }
       }
     }
-    energy = std::min(std::min(energy_rgba(0), energy_rgba(1)), energy_rgba(2));
-    energy *= 4.0 * M_PI / num_problem_values;
+    energy = std::min(std::min(energy_rgb(0), energy_rgb(1)), energy_rgb(2));
+    energy *= 4.0 * M_PI / energy_weight;
     gamma = 1;
     upper_bound = gamma * 2;
     lower_bound = 0;
@@ -1505,9 +1508,9 @@ void ProjectConstrainedWeightedSparseSampleStream(
         }
         for(int c=0; c<3; c++) {
           Eigen::Matrix<T,num_coeffs,1> column = soln.col(c);
-          coeff_dot_rgba(c) = column.dot(column);
+          coeff_dot_rgb(c) = column.dot(column);
         }
-        coeff_dot = std::max(std::max(coeff_dot_rgba(0), coeff_dot_rgba(1)), coeff_dot_rgba(2));
+        coeff_dot = std::max(std::max(coeff_dot_rgb(0), coeff_dot_rgb(1)), coeff_dot_rgb(2));
         if(coeff_dot < energy) {
           upper_bound = gamma;
           gamma = (upper_bound + lower_bound) * static_cast<T>(0.5);
