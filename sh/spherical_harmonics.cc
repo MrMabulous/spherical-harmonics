@@ -14,6 +14,7 @@
 
 #include "sh/efficient_sh_evaluation.h"
 #include "sh/spherical_harmonics.h"
+#include "Eigen/Sparse"
 
 #include "mabutrace.h"
 
@@ -1537,6 +1538,140 @@ void ProjectConstrainedWeightedSparseSampleStream(
 }
 
 template <typename T, int order>
+void ProjectMultipleWeightedSparseSamples(
+    int num_problems, const algn_vector<Vector3<T>>& dirs,
+    const algn_vector<T>& r_values, const algn_vector<T>& g_values,
+    const algn_vector<T>& b_values, const algn_vector<T>& weights,
+    const algn_vector<size_t>& index_array, const algn_vector<size_t>& num_values_array,
+    algn_vector<T>* r_coeffs_out, algn_vector<T>* g_coeffs_out,
+    algn_vector<T>* b_coeffs_out, int min_samples_per_basis) {
+  TRACE_SCOPE("ProjectConstrainedWeightedSparseSampleStream()");
+  CHECK(order >= 0, "Order must be at least zero.");
+  CHECK(dirs.size() == r_values.size(),
+      "Directions and r_values must have the same size.");
+  CHECK(dirs.size() == g_values.size(),
+      "Directions and g_values must have the same size.");
+  CHECK(dirs.size() == b_values.size(),
+      "Directions and b_values must have the same size.");
+  CHECK(r_coeffs_out != nullptr,
+      "r_coeffs_out must not be null.");
+  CHECK(g_coeffs_out != nullptr,
+      "g_coeffs_out must not be null.");
+  CHECK(b_coeffs_out != nullptr,
+      "b_coeffs_out must not be null.");
+  CHECK(num_problems == num_values_array.size(),
+      "num_problems must equal the size of num_values_array.");
+  CHECK(order <= kEfficientOrderLimit,
+      "order must be smaller.");
+
+  constexpr int num_coeffs = GetCoefficientCount(order);
+
+  // Solve weighted linear least squares systems W^(1/2)*Ax = W^(1/2)*b
+  // for the coefficients, x. Each row in the matrix A are the values of the
+  // spherical harmonic basis functions evaluated at that sample's direction
+  // (from @dirs). The corresponding row in b is the value in @values.
+  r_coeffs_out->resize(num_coeffs * num_problems);
+  g_coeffs_out->resize(num_coeffs * num_problems);
+  b_coeffs_out->resize(num_coeffs * num_problems);
+
+  algn_vector<T>* coeffs_out[3];
+  coeffs_out[0] = r_coeffs_out;
+  coeffs_out[1] = g_coeffs_out;
+  coeffs_out[2] = b_coeffs_out;
+
+  // precompute spherical harmonics coefficients for each direction.
+  algn_vector<algn_vector<T>> sh_per_dir;
+  sh_per_dir.resize(dirs.size());
+  for(int d=0; d<dirs.size(); d++) {
+    sh_per_dir[d].resize(num_coeffs);
+    SHEval<T>[order](dirs[d][0], dirs[d][1], dirs[d][2], sh_per_dir[d].data());
+  }
+  size_t largest_problem = 0;
+  for(int p = 0; p < num_problems; p++) {
+    if(num_values_array[p] > largest_problem) {
+      largest_problem = num_values_array[p];
+    }
+  }
+  //algn_vector<T> func_value_data(index_array.size() * 3);
+  //algn_vector<T> basis_values_data(largest_problem * num_coeffs);
+  //algn_vector<T> weighed_func_value_data(largest_problem * 3);
+  //algn_vector<T> weighed_basis_values_data(largest_problem * num_coeffs);
+  //algn_vector<T> transposed_data(largest_problem * num_coeffs);
+  //algn_vector<T> reprojection_values_data(largest_problem * 3);
+
+  //Eigen::Matrix<T,num_coeffs,4> soln;
+  //MatrixX<T> soln(num_coeffs, 4);
+  Eigen::Matrix<T,num_coeffs,4> t_times_weighed_func_values;
+  Eigen::Matrix<T,num_coeffs,num_coeffs> t_times_weighed_basis_values;
+
+  //Eigen::LDLT<MatrixX<T>> solver(num_coeffs);
+  //Eigen::LLT<Eigen::Matrix<T,num_coeffs,num_coeffs>> solver(num_coeffs);
+  //Eigen::JacobiSVD<MatrixX<T>> solver(largest_problem, num_coeffs, Eigen::ComputeThinU | Eigen::ComputeThinV);
+
+  Eigen::SparseMatrix<T> sparse_basis_values(index_array.size(), num_coeffs * num_problems);
+  sparse_basis_values.reserve(Eigen::VectorXi::Constant(num_coeffs * num_problems, largest_problem));
+
+  Eigen::Matrix<T,Eigen::Dynamic,3> soln(num_coeffs * num_problems, 3);
+  Eigen::Matrix<T,Eigen::Dynamic,3> func_values(index_array.size(), 3);
+
+  size_t row_ofst = 0;
+  for(int p = 0; p < num_problems; p++) {
+    size_t col_ofst = p * num_coeffs;
+    size_t num_problem_values = num_values_array[p];
+    if(num_problem_values == 0) {
+      for(int c=0; c<3; c++) {
+        for (unsigned int i = 0; i < num_coeffs; i++) {
+          (*(coeffs_out[c]))[p * num_coeffs + i] = static_cast<T>(0.0);
+        }
+      }
+      continue;
+    }
+    int max_problem_order =
+        std::min(order, GetOrderFromCoefficientCount(num_problem_values /
+            static_cast<float>(min_samples_per_basis)));
+    int max_problem_coeffs = GetCoefficientCount(max_problem_order);
+
+    // unweighed transpose of basis values:
+    //Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,Eigen::Dynamic>, Eigen::Aligned32> t(transposed_data.data(),
+    //                                                                               max_problem_coeffs, num_problem_values);
+
+    for (unsigned int i = 0; i < num_problem_values; i++) {
+      size_t dir_value_idx = index_array[row_ofst + i];
+      T sample_weight = weights[row_ofst + i];
+      T sqrt_weight = static_cast<T>(sqrt(abs(sample_weight)));
+      T sample_weight_sign = static_cast<T>(sample_weight < 0 ? -1.0 : 1.0);
+      func_values(row_ofst + i,0) = r_values[dir_value_idx] * sample_weight_sign * sqrt_weight;
+      func_values(row_ofst + i,1) = g_values[dir_value_idx] * sample_weight_sign * sqrt_weight;
+      func_values(row_ofst + i,2) = b_values[dir_value_idx] * sample_weight_sign * sqrt_weight;
+      for (int l = 0; l <= max_problem_order; l++) {
+        for (int m = -l; m <= l; m++) {
+          int sh_idx = GetIndex(l, m);
+          sparse_basis_values.insert(row_ofst + i, col_ofst + sh_idx) = sh_per_dir[dir_value_idx][sh_idx] * sqrt_weight;
+        }
+      }
+    }
+    col_ofst +=num_problem_values;
+  }
+
+  Eigen::SparseQR<Eigen::SparseMatrix<T>,Eigen::COLAMDOrdering<int>> solver;
+  solver.compute(sparse_basis_values);
+  if(solver.info()!=Eigen::Success) {
+    printf("computing failed\n");
+    return;
+  }
+  soln = solver.solve(func_values);
+  if(solver.info()!=Eigen::Success) {
+    printf("solving failed\n");
+    return;
+  }
+  for(int i=0; i<num_coeffs*num_problems; i++) {
+    for(int c=0; c<3; c++) {
+      (*(coeffs_out[c]))[i] = soln(i, c);
+    }
+  }
+}
+
+template <typename T, int order>
 void AddWeightedSparseSampleStream(
     int num_problems, const algn_vector<Vector3<T>>& dirs,
     const algn_vector<T>& r_values, const algn_vector<T>& g_values,
@@ -1964,6 +2099,14 @@ template void ProjectWeightedSparseSampleStream<float,6>(
 */
 
 template void AddWeightedSparseSampleStream<float,4>(
+    int num_problems, const algn_vector<Vector3<float>>& dirs,
+    const algn_vector<float>& r_values, const algn_vector<float>& g_values,
+    const algn_vector<float>& b_values, const algn_vector<float>& weights,
+    const algn_vector<size_t>& index_array, const algn_vector<size_t>& num_values_array,
+    algn_vector<float>* r_coeffs_out, algn_vector<float>* g_coeffs_out,
+    algn_vector<float>* b_coeffs_out, int min_samples_per_basis);
+
+template void ProjectMultipleWeightedSparseSamples<float,4>(
     int num_problems, const algn_vector<Vector3<float>>& dirs,
     const algn_vector<float>& r_values, const algn_vector<float>& g_values,
     const algn_vector<float>& b_values, const algn_vector<float>& weights,
