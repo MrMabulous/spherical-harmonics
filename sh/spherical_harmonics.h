@@ -253,7 +253,16 @@ void ProjectConstrainedWeightedSparseSampleStream(
     algn_vector<T>* r_coeffs_out, algn_vector<T>* g_coeffs_out,
     algn_vector<T>* b_coeffs_out, SolverType solverType = SolverType::kJacobiSVD,
     int min_samples_per_basis = 2);
-
+/*
+template <typename T, int order>
+void ProjectMultipleWeightedSparseSample(
+    int num_problems, const algn_vector<Vector3<T>>& dirs,
+    const algn_vector<T>& r_values, const algn_vector<T>& g_values,
+    const algn_vector<T>& b_values, const algn_vector<T>& weights,
+    const algn_vector<size_t>& index_array, const algn_vector<size_t>& num_values_array,
+    algn_vector<T>* r_coeffs_out, algn_vector<T>* g_coeffs_out,
+    algn_vector<T>* b_coeffs_out, int min_samples_per_basis = 2);
+*/
 template <typename T, int order>
 void AddWeightedSparseSampleStream(
     int num_problems, const algn_vector<Vector3<T>>& dirs,

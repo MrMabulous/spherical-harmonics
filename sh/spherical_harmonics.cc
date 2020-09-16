@@ -1448,7 +1448,6 @@ void ProjectConstrainedWeightedSparseSampleStream(
 
     energy_rgb.setZero();
     energy_weight = 0;
-    energy_rgb_weights.setZero();
     for (unsigned int i = 0; i < num_problem_values; i++) {
       reprojection_errors[i] = 1;
       size_t dir_value_idx = index_array[array_ofst + i];
