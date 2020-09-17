@@ -1394,25 +1394,28 @@ void ProjectConstrainedWeightedSparseSampleStream(
       largest_problem = num_values_array[p];
     }
   }
-  algn_vector<T> func_value_data(largest_problem * 4);
-  algn_vector<T> basis_values_data(largest_problem * num_coeffs);
-  algn_vector<T> weighed_func_value_data(largest_problem * 4);
-  algn_vector<T> weighed_basis_values_data(largest_problem * num_coeffs);
-  algn_vector<T> transposed_data(largest_problem * num_coeffs);
-  algn_vector<T> reprojection_values_data(largest_problem * 4);
-  algn_vector<T> reprojection_errors(largest_problem);
 
-  Eigen::Matrix<T,num_coeffs,4> soln;
+  algn_vector<T> weighed_func_value_data(largest_problem * 3);
+  algn_vector<T> weighed_basis_values_data(largest_problem * num_coeffs);
+  algn_vector<T> weighed_basis_values_times_u_data(largest_problem * num_coeffs);
+  algn_vector<T> weighed_basis_values_times_u_transpose_data(largest_problem * num_coeffs);
+  algn_vector<T> weighed_basis_values_times_u_transpose_times_weighed_func_values_data(num_coeffs * 3);
+  algn_vector<T> transposed_data(largest_problem * num_coeffs);
+  algn_vector<T> t_times_weighed_basis_values_data(num_coeffs * num_coeffs);
+  algn_vector<T> t_times_weighed_func_values_data(num_coeffs * 3);
+  algn_vector<T> U_data(num_coeffs * num_coeffs);
+  algn_vector<T> singular_values_data(num_coeffs);
+
+  Eigen::Matrix<T,num_coeffs,3> soln;
   //MatrixX<T> soln(num_coeffs, 4);
-  Eigen::Matrix<T,num_coeffs,4> t_times_weighed_func_values;
-  Eigen::Matrix<T,num_coeffs,num_coeffs> t_times_weighed_basis_values;
 
   Eigen::Matrix<T, 1, 3> energy_rgb;
   Eigen::Matrix<T, 1, 3> coeff_dot_rgb;
   T gamma, energy, coeff_dot, upper_bound, lower_bound, energy_weight;
 
   //Eigen::LDLT<MatrixX<T>> solver(num_coeffs);
-  Eigen::LLT<Eigen::Matrix<T,num_coeffs,num_coeffs>> solver(num_coeffs);
+  //Eigen::LLT<Eigen::Matrix<T,num_coeffs,num_coeffs>> solver(num_coeffs);
+  Eigen::JacobiSVD<Eigen::Matrix<T,num_coeffs,num_coeffs>> solver(num_coeffs, num_coeffs, Eigen::ComputeFullU | Eigen::ComputeThinV);
   //Eigen::JacobiSVD<MatrixX<T>> solver(largest_problem, num_coeffs, Eigen::ComputeThinU | Eigen::ComputeThinV);
 
   size_t array_ofst = 0;
@@ -1432,30 +1435,36 @@ void ProjectConstrainedWeightedSparseSampleStream(
             static_cast<float>(min_samples_per_basis)));
     int max_problem_coeffs = GetCoefficientCount(max_problem_order);
 
-
-    Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,Eigen::Dynamic>, Eigen::Aligned32> basis_values(basis_values_data.data(),
-                                                                                               num_problem_values, max_problem_coeffs);
-    Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,4>,Eigen::Aligned32> func_values(func_value_data.data(),
-                                                                               num_problem_values, 4);
     Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,Eigen::Dynamic>, Eigen::Aligned32> weighed_basis_values(weighed_basis_values_data.data(),
                                                                                                       num_problem_values, max_problem_coeffs);
-    Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,4>,Eigen::Aligned32> weighed_func_values(weighed_func_value_data.data(),
-                                                                                       num_problem_values, 4);
-    Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,4>,Eigen::Aligned32> reprojection_values(reprojection_values_data.data(),
-                                                                                       num_problem_values, 4);
+    Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,Eigen::Dynamic>, Eigen::Aligned32> weighed_basis_values_times_u(weighed_basis_values_times_u_data.data(),
+                                                                                                              num_problem_values, max_problem_coeffs);
+    Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,Eigen::Dynamic>, Eigen::Aligned32> weighed_basis_values_times_u_transpose(weighed_basis_values_times_u_transpose_data.data(),
+                                                                                                              num_problem_values, max_problem_coeffs);
+    Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,3>,Eigen::Aligned32> weighed_func_values(weighed_func_value_data.data(),
+                                                                                       num_problem_values, 3);
     // unweighed transpose of basis values:
     Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,Eigen::Dynamic>, Eigen::Aligned32> t(transposed_data.data(),
                                                                                    max_problem_coeffs, num_problem_values);
 
+    Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,Eigen::Dynamic>, Eigen::Aligned32> t_times_weighed_basis_values(t_times_weighed_basis_values_data.data(),
+                                                                                                              max_problem_coeffs, max_problem_coeffs);
+
+    Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,Eigen::Dynamic>, Eigen::Aligned32> U(t_times_weighed_basis_values_data.data(),
+                                                                                   max_problem_coeffs, max_problem_coeffs);
+
+    Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,3>,Eigen::Aligned32> t_times_weighed_func_values(t_times_weighed_func_values_data.data(),
+                                                                                               max_problem_coeffs, 3);
+
+    Eigen::Map<Eigen::Matrix<T,1,Eigen::Dynamic>,Eigen::Aligned32> singular_values(singular_values_data.data(), 1, max_problem_coeffs);
+
+    Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,3>,Eigen::Aligned32> weighed_basis_values_times_u_transpose_times_weighed_func_values(
+      weighed_basis_values_times_u_transpose_times_weighed_func_values_data.data(), max_problem_coeffs, 3);
+
     energy_rgb.setZero();
     energy_weight = 0;
     for (unsigned int i = 0; i < num_problem_values; i++) {
-      reprojection_errors[i] = 1;
       size_t dir_value_idx = index_array[array_ofst + i];
-      func_values(i,0) = r_values[dir_value_idx];
-      func_values(i,1) = g_values[dir_value_idx];
-      func_values(i,2) = b_values[dir_value_idx];
-      func_values(i,3) = 0;
       energy_rgb(0) += r_values[dir_value_idx] * r_values[dir_value_idx];
       energy_rgb(1) += g_values[dir_value_idx] * g_values[dir_value_idx];
       energy_rgb(2) += b_values[dir_value_idx] * b_values[dir_value_idx];
@@ -1463,18 +1472,26 @@ void ProjectConstrainedWeightedSparseSampleStream(
       energy_weight += sample_weight;
       T sqrt_weight = static_cast<T>(sqrt(abs(sample_weight)));
       T sample_weight_sign = static_cast<T>(sample_weight < 0 ? -1.0 : 1.0);
-      for(int c=0; c<4; c++) {
-        weighed_func_values(i,c) = sample_weight_sign * sqrt_weight * func_values(i,c);
-      }
+      weighed_func_values(i,0) = r_values[dir_value_idx] * sample_weight_sign * sqrt_weight;
+      weighed_func_values(i,1) = g_values[dir_value_idx] * sample_weight_sign * sqrt_weight;
+      weighed_func_values(i,2) = b_values[dir_value_idx] * sample_weight_sign * sqrt_weight;
       for (int l = 0; l <= max_problem_order; l++) {
         for (int m = -l; m <= l; m++) {
           int sh_idx = GetIndex(l, m);
-          basis_values(i, sh_idx) = sh_per_dir[dir_value_idx][sh_idx];
-          t(sh_idx, i) = sh_per_dir[dir_value_idx][sh_idx];
-          weighed_basis_values(i, sh_idx) = sqrt_weight * basis_values(i, sh_idx);
+          t(sh_idx, i) = sqrt_weight * sh_per_dir[dir_value_idx][sh_idx];
+          weighed_basis_values(i, sh_idx) = sqrt_weight * sh_per_dir[dir_value_idx][sh_idx];
         }
       }
     }
+    t_times_weighed_basis_values.noalias() = t * weighed_basis_values;
+    t_times_weighed_func_values.noalias() = t * weighed_func_values;
+    solver.compute(t_times_weighed_basis_values);
+    U = solver.matrixU();
+    singular_values = solver.singularValues();
+    weighed_basis_values_times_u.noalias() = weighed_basis_values * U;
+    weighed_basis_values_times_u_transpose.noalias() = weighed_basis_values_times_u.transpose();
+    weighed_basis_values_times_u_transpose_times_weighed_func_values.noalias() = weighed_basis_values_times_u_transpose * weighed_func_values;
+
     energy = std::min(std::min(energy_rgb(0), energy_rgb(1)), energy_rgb(2));
     energy *= 4.0 * M_PI / energy_weight;
     gamma = 1;
@@ -1492,26 +1509,16 @@ void ProjectConstrainedWeightedSparseSampleStream(
         // functions that best match the data
 
         //t.noalias() = weighed_basis_values.transpose();
-        t_times_weighed_basis_values.noalias() = t * weighed_basis_values;
-        
-        for(int d=0; d<num_coeffs; d++) {
-          t_times_weighed_basis_values(d,d) += gamma;
+
+        T error_metric = 0;
+        for(int i=0; i<max_problem_coeffs; i++) {
+          T gamma_shifted_singular_value = singular_values(i) + gamma;
+          T gamma_shifted_singular_value_squared = gamma_shifted_singular_value * gamma_shifted_singular_value;
+          error_metric += weighed_basis_values_times_u_transpose_times_weighed_func_values(i) * 
+                          weighed_basis_values_times_u_transpose_times_weighed_func_values(i) * (1 / gamma_shifted_singular_value_squared);
         }
-        
-        TRACE_SCOPE("solve");
-        {
-          solver.compute(t_times_weighed_basis_values);
-        }
-        t_times_weighed_func_values.noalias() = t * weighed_func_values;
-        {
-          soln.noalias() = solver.solve(t_times_weighed_func_values);
-        }
-        for(int c=0; c<3; c++) {
-          Eigen::Matrix<T,num_coeffs,1> column = soln.col(c);
-          coeff_dot_rgb(c) = column.dot(column);
-        }
-        coeff_dot = std::max(std::max(coeff_dot_rgb(0), coeff_dot_rgb(1)), coeff_dot_rgb(2));
-        if(coeff_dot < energy) {
+
+        if(error_metric < energy) {
           upper_bound = gamma;
           gamma = (upper_bound + lower_bound) * static_cast<T>(0.5);
           initial_condition_found = true;
@@ -1524,6 +1531,13 @@ void ProjectConstrainedWeightedSparseSampleStream(
         }
       }
     }
+    // shift A by gamma
+    for(int i=0; i<max_problem_coeffs; i++) {
+      t_times_weighed_basis_values(i,i) += gamma;
+    }
+    solver.compute(t_times_weighed_basis_values);
+    soln.noalias() = solver.solve(t_times_weighed_func_values);
+
     // Copy everything over to our coeffs array
     for(int c=0; c<3; c++) {
       for (unsigned int i = 0; i < max_problem_coeffs; i++) {
@@ -1592,21 +1606,6 @@ void ProjectMultipleWeightedSparseSamples(
       largest_problem = num_values_array[p];
     }
   }
-  //algn_vector<T> func_value_data(index_array.size() * 3);
-  //algn_vector<T> basis_values_data(largest_problem * num_coeffs);
-  //algn_vector<T> weighed_func_value_data(largest_problem * 3);
-  //algn_vector<T> weighed_basis_values_data(largest_problem * num_coeffs);
-  //algn_vector<T> transposed_data(largest_problem * num_coeffs);
-  //algn_vector<T> reprojection_values_data(largest_problem * 3);
-
-  //Eigen::Matrix<T,num_coeffs,4> soln;
-  //MatrixX<T> soln(num_coeffs, 4);
-  Eigen::Matrix<T,num_coeffs,4> t_times_weighed_func_values;
-  Eigen::Matrix<T,num_coeffs,num_coeffs> t_times_weighed_basis_values;
-
-  //Eigen::LDLT<MatrixX<T>> solver(num_coeffs);
-  //Eigen::LLT<Eigen::Matrix<T,num_coeffs,num_coeffs>> solver(num_coeffs);
-  //Eigen::JacobiSVD<MatrixX<T>> solver(largest_problem, num_coeffs, Eigen::ComputeThinU | Eigen::ComputeThinV);
 
   Eigen::SparseMatrix<T> sparse_basis_values(index_array.size(), num_coeffs * num_problems);
   sparse_basis_values.reserve(Eigen::VectorXi::Constant(num_coeffs * num_problems, largest_problem));

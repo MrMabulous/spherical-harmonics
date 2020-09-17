@@ -261,7 +261,8 @@ void ProjectMultipleWeightedSparseSamples(
     const algn_vector<T>& b_values, const algn_vector<T>& weights,
     const algn_vector<size_t>& index_array, const algn_vector<size_t>& num_values_array,
     algn_vector<T>* r_coeffs_out, algn_vector<T>* g_coeffs_out,
-    algn_vector<T>* b_coeffs_out, int min_samples_per_basis = 2);
+    algn_vector<T>* b_coeffs_out,
+    int min_samples_per_basis = 2);
 
 template <typename T, int order>
 void AddWeightedSparseSampleStream(
