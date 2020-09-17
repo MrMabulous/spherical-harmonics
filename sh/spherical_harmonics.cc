@@ -1410,12 +1410,11 @@ void ProjectConstrainedWeightedSparseSampleStream(
   //MatrixX<T> soln(num_coeffs, 4);
 
   Eigen::Matrix<T, 1, 3> energy_rgb;
-  Eigen::Matrix<T, 1, 3> coeff_dot_rgb;
   T gamma, energy, coeff_dot, upper_bound, lower_bound, energy_weight;
 
   //Eigen::LDLT<MatrixX<T>> solver(num_coeffs);
   //Eigen::LLT<Eigen::Matrix<T,num_coeffs,num_coeffs>> solver(num_coeffs);
-  Eigen::JacobiSVD<Eigen::Matrix<T,num_coeffs,num_coeffs>> solver(num_coeffs, num_coeffs, Eigen::ComputeFullU | Eigen::ComputeThinV);
+  Eigen::JacobiSVD<Eigen::Matrix<T,Eigen::Dynamic,Eigen::Dynamic>> solver(num_coeffs, num_coeffs, Eigen::ComputeFullU | Eigen::ComputeThinV);
   //Eigen::JacobiSVD<MatrixX<T>> solver(largest_problem, num_coeffs, Eigen::ComputeThinU | Eigen::ComputeThinV);
 
   size_t array_ofst = 0;
@@ -1437,10 +1436,12 @@ void ProjectConstrainedWeightedSparseSampleStream(
 
     Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,Eigen::Dynamic>, Eigen::Aligned32> weighed_basis_values(weighed_basis_values_data.data(),
                                                                                                       num_problem_values, max_problem_coeffs);
+    Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,Eigen::Dynamic>, Eigen::Aligned32> U(t_times_weighed_basis_values_data.data(),
+                                                                                   max_problem_coeffs, max_problem_coeffs);
     Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,Eigen::Dynamic>, Eigen::Aligned32> weighed_basis_values_times_u(weighed_basis_values_times_u_data.data(),
                                                                                                               num_problem_values, max_problem_coeffs);
     Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,Eigen::Dynamic>, Eigen::Aligned32> weighed_basis_values_times_u_transpose(weighed_basis_values_times_u_transpose_data.data(),
-                                                                                                              num_problem_values, max_problem_coeffs);
+                                                                                                              max_problem_coeffs, num_problem_values);
     Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,3>,Eigen::Aligned32> weighed_func_values(weighed_func_value_data.data(),
                                                                                        num_problem_values, 3);
     // unweighed transpose of basis values:
@@ -1449,9 +1450,6 @@ void ProjectConstrainedWeightedSparseSampleStream(
 
     Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,Eigen::Dynamic>, Eigen::Aligned32> t_times_weighed_basis_values(t_times_weighed_basis_values_data.data(),
                                                                                                               max_problem_coeffs, max_problem_coeffs);
-
-    Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,Eigen::Dynamic>, Eigen::Aligned32> U(t_times_weighed_basis_values_data.data(),
-                                                                                   max_problem_coeffs, max_problem_coeffs);
 
     Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,3>,Eigen::Aligned32> t_times_weighed_func_values(t_times_weighed_func_values_data.data(),
                                                                                                max_problem_coeffs, 3);
