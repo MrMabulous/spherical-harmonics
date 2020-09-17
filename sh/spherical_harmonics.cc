@@ -1405,8 +1405,9 @@ void ProjectConstrainedWeightedSparseSampleStream(
   algn_vector<T> t_times_weighed_func_values_data(num_coeffs * 3);
   algn_vector<T> U_data(num_coeffs * num_coeffs);
   algn_vector<T> singular_values_data(num_coeffs);
+  algn_vector<T> soln_data(num_coeffs * 3);
 
-  Eigen::Matrix<T,num_coeffs,3> soln;
+  //Eigen::Matrix<T,num_coeffs,3> soln;
   //MatrixX<T> soln(num_coeffs, 4);
 
   Eigen::Matrix<T, 1, 3> energy_rgb;
@@ -1458,6 +1459,8 @@ void ProjectConstrainedWeightedSparseSampleStream(
 
     Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,3>,Eigen::Aligned32> weighed_basis_values_times_u_transpose_times_weighed_func_values(
       weighed_basis_values_times_u_transpose_times_weighed_func_values_data.data(), max_problem_coeffs, 3);
+
+    Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,3>,Eigen::Aligned32> soln(soln_data.data(), max_problem_coeffs, 3);
 
     energy_rgb.setZero();
     energy_weight = 0;
