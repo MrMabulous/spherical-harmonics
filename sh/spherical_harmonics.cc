@@ -1136,7 +1136,7 @@ void ProjectWeightedSparseSampleStream(
       }
     }                                                                       
 
-    // do 10 iterations.
+    // do 100 iterations.
     {
       TRACE_SCOPE("iterate");
       for(int iterations = 0; iterations < 10; iterations++) {
@@ -1437,7 +1437,7 @@ void ProjectConstrainedWeightedSparseSampleStream(
 
     Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,Eigen::Dynamic>, Eigen::Aligned32> weighed_basis_values(weighed_basis_values_data.data(),
                                                                                                       num_problem_values, max_problem_coeffs);
-    Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,Eigen::Dynamic>, Eigen::Aligned32> U(t_times_weighed_basis_values_data.data(),
+    Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,Eigen::Dynamic>, Eigen::Aligned32> U(U_data.data(),
                                                                                    max_problem_coeffs, max_problem_coeffs);
     Eigen::Map<Eigen::Matrix<T,Eigen::Dynamic,Eigen::Dynamic>, Eigen::Aligned32> weighed_basis_values_times_u(weighed_basis_values_times_u_data.data(),
                                                                                                               num_problem_values, max_problem_coeffs);
@@ -1652,6 +1652,7 @@ void ProjectMultipleWeightedSparseSamples(
     }
     col_ofst +=num_problem_values;
   }
+  sparse_basis_values.makeCompressed();
 
   Eigen::SparseQR<Eigen::SparseMatrix<T>,Eigen::COLAMDOrdering<int>> solver;
   solver.compute(sparse_basis_values);
@@ -2009,57 +2010,39 @@ template std::unique_ptr<algn_vector<float>>
       const algn_vector<Vector3<float>>& dirs,
       const algn_vector<float>& values, const algn_vector<float>& weights,
       SolverType solverType);
-/*
-template void ProjectWeightedSparseSampleStream<double,1>(
-    int num_problems, const algn_vector<Vector3<double>>& dirs,
-    const algn_vector<double>& r_values, const algn_vector<double>& g_values,
-    const algn_vector<double>& b_values, const algn_vector<double>& weights,
+
+template void ProjectWeightedSparseSampleStream<float,0>(
+    int num_problems, const algn_vector<Vector3<float>>& dirs,
+    const algn_vector<float>& r_values, const algn_vector<float>& g_values,
+    const algn_vector<float>& b_values, const algn_vector<float>& weights,
     const algn_vector<size_t>& index_array, const algn_vector<size_t>& num_values_array,
-    algn_vector<double>* r_coeffs_out, algn_vector<double>* g_coeffs_out,
-    algn_vector<double>* b_coeffs_out, SolverType solverType);
+    algn_vector<float>* r_coeffs_out, algn_vector<float>* g_coeffs_out,
+    algn_vector<float>* b_coeffs_out, SolverType solverType, int min_samples_per_basis);
+
 template void ProjectWeightedSparseSampleStream<float,1>(
     int num_problems, const algn_vector<Vector3<float>>& dirs,
     const algn_vector<float>& r_values, const algn_vector<float>& g_values,
     const algn_vector<float>& b_values, const algn_vector<float>& weights,
     const algn_vector<size_t>& index_array, const algn_vector<size_t>& num_values_array,
     algn_vector<float>* r_coeffs_out, algn_vector<float>* g_coeffs_out,
-    algn_vector<float>* b_coeffs_out, SolverType solverType);
-template void ProjectWeightedSparseSampleStream<double,2>(
-    int num_problems, const algn_vector<Vector3<double>>& dirs,
-    const algn_vector<double>& r_values, const algn_vector<double>& g_values,
-    const algn_vector<double>& b_values, const algn_vector<double>& weights,
-    const algn_vector<size_t>& index_array, const algn_vector<size_t>& num_values_array,
-    algn_vector<double>* r_coeffs_out, algn_vector<double>* g_coeffs_out,
-    algn_vector<double>* b_coeffs_out, SolverType solverType);
+    algn_vector<float>* b_coeffs_out, SolverType solverType, int min_samples_per_basis);
+
 template void ProjectWeightedSparseSampleStream<float,2>(
     int num_problems, const algn_vector<Vector3<float>>& dirs,
     const algn_vector<float>& r_values, const algn_vector<float>& g_values,
     const algn_vector<float>& b_values, const algn_vector<float>& weights,
     const algn_vector<size_t>& index_array, const algn_vector<size_t>& num_values_array,
     algn_vector<float>* r_coeffs_out, algn_vector<float>* g_coeffs_out,
-    algn_vector<float>* b_coeffs_out, SolverType solverType);
-template void ProjectWeightedSparseSampleStream<double,3>(
-    int num_problems, const algn_vector<Vector3<double>>& dirs,
-    const algn_vector<double>& r_values, const algn_vector<double>& g_values,
-    const algn_vector<double>& b_values, const algn_vector<double>& weights,
-    const algn_vector<size_t>& index_array, const algn_vector<size_t>& num_values_array,
-    algn_vector<double>* r_coeffs_out, algn_vector<double>* g_coeffs_out,
-    algn_vector<double>* b_coeffs_out, SolverType solverType);
+    algn_vector<float>* b_coeffs_out, SolverType solverType, int min_samples_per_basis);
+
 template void ProjectWeightedSparseSampleStream<float,3>(
     int num_problems, const algn_vector<Vector3<float>>& dirs,
     const algn_vector<float>& r_values, const algn_vector<float>& g_values,
     const algn_vector<float>& b_values, const algn_vector<float>& weights,
     const algn_vector<size_t>& index_array, const algn_vector<size_t>& num_values_array,
     algn_vector<float>* r_coeffs_out, algn_vector<float>* g_coeffs_out,
-    algn_vector<float>* b_coeffs_out, SolverType solverType);
-template void ProjectWeightedSparseSampleStream<double,4>(
-    int num_problems, const algn_vector<Vector3<double>>& dirs,
-    const algn_vector<double>& r_values, const algn_vector<double>& g_values,
-    const algn_vector<double>& b_values, const algn_vector<double>& weights,
-    const algn_vector<size_t>& index_array, const algn_vector<size_t>& num_values_array,
-    algn_vector<double>* r_coeffs_out, algn_vector<double>* g_coeffs_out,
-    algn_vector<double>* b_coeffs_out, SolverType solverType);
-    */
+    algn_vector<float>* b_coeffs_out, SolverType solverType, int min_samples_per_basis);
+
 template void ProjectWeightedSparseSampleStream<float,4>(
     int num_problems, const algn_vector<Vector3<float>>& dirs,
     const algn_vector<float>& r_values, const algn_vector<float>& g_values,
@@ -2067,36 +2050,6 @@ template void ProjectWeightedSparseSampleStream<float,4>(
     const algn_vector<size_t>& index_array, const algn_vector<size_t>& num_values_array,
     algn_vector<float>* r_coeffs_out, algn_vector<float>* g_coeffs_out,
     algn_vector<float>* b_coeffs_out, SolverType solverType, int min_samples_per_basis);
-/*
-template void ProjectWeightedSparseSampleStream<double,5>(
-    int num_problems, const algn_vector<Vector3<double>>& dirs,
-    const algn_vector<double>& r_values, const algn_vector<double>& g_values,
-    const algn_vector<double>& b_values, const algn_vector<double>& weights,
-    const algn_vector<size_t>& index_array, const algn_vector<size_t>& num_values_array,
-    algn_vector<double>* r_coeffs_out, algn_vector<double>* g_coeffs_out,
-    algn_vector<double>* b_coeffs_out, SolverType solverType);
-template void ProjectWeightedSparseSampleStream<float,5>(
-    int num_problems, const algn_vector<Vector3<float>>& dirs,
-    const algn_vector<float>& r_values, const algn_vector<float>& g_values,
-    const algn_vector<float>& b_values, const algn_vector<float>& weights,
-    const algn_vector<size_t>& index_array, const algn_vector<size_t>& num_values_array,
-    algn_vector<float>* r_coeffs_out, algn_vector<float>* g_coeffs_out,
-    algn_vector<float>* b_coeffs_out, SolverType solverType);
-template void ProjectWeightedSparseSampleStream<double,6>(
-    int num_problems, const algn_vector<Vector3<double>>& dirs,
-    const algn_vector<double>& r_values, const algn_vector<double>& g_values,
-    const algn_vector<double>& b_values, const algn_vector<double>& weights,
-    const algn_vector<size_t>& index_array, const algn_vector<size_t>& num_values_array,
-    algn_vector<double>* r_coeffs_out, algn_vector<double>* g_coeffs_out,
-    algn_vector<double>* b_coeffs_out, SolverType solverType);
-template void ProjectWeightedSparseSampleStream<float,6>(
-    int num_problems, const algn_vector<Vector3<float>>& dirs,
-    const algn_vector<float>& r_values, const algn_vector<float>& g_values,
-    const algn_vector<float>& b_values, const algn_vector<float>& weights,
-    const algn_vector<size_t>& index_array, const algn_vector<size_t>& num_values_array,
-    algn_vector<float>* r_coeffs_out, algn_vector<float>* g_coeffs_out,
-    algn_vector<float>* b_coeffs_out, SolverType solverType);
-*/
 
 template void AddWeightedSparseSampleStream<float,4>(
     int num_problems, const algn_vector<Vector3<float>>& dirs,
@@ -2113,6 +2066,38 @@ template void ProjectMultipleWeightedSparseSamples<float,4>(
     const algn_vector<size_t>& index_array, const algn_vector<size_t>& num_values_array,
     algn_vector<float>* r_coeffs_out, algn_vector<float>* g_coeffs_out,
     algn_vector<float>* b_coeffs_out, int min_samples_per_basis);
+
+template void ProjectConstrainedWeightedSparseSampleStream<float,0>(
+    int num_problems, const algn_vector<Vector3<float>>& dirs,
+    const algn_vector<float>& r_values, const algn_vector<float>& g_values,
+    const algn_vector<float>& b_values, const algn_vector<float>& weights,
+    const algn_vector<size_t>& index_array, const algn_vector<size_t>& num_values_array,
+    algn_vector<float>* r_coeffs_out, algn_vector<float>* g_coeffs_out,
+    algn_vector<float>* b_coeffs_out, SolverType solverType, int min_samples_per_basis);
+
+template void ProjectConstrainedWeightedSparseSampleStream<float,1>(
+    int num_problems, const algn_vector<Vector3<float>>& dirs,
+    const algn_vector<float>& r_values, const algn_vector<float>& g_values,
+    const algn_vector<float>& b_values, const algn_vector<float>& weights,
+    const algn_vector<size_t>& index_array, const algn_vector<size_t>& num_values_array,
+    algn_vector<float>* r_coeffs_out, algn_vector<float>* g_coeffs_out,
+    algn_vector<float>* b_coeffs_out, SolverType solverType, int min_samples_per_basis);
+
+template void ProjectConstrainedWeightedSparseSampleStream<float,2>(
+    int num_problems, const algn_vector<Vector3<float>>& dirs,
+    const algn_vector<float>& r_values, const algn_vector<float>& g_values,
+    const algn_vector<float>& b_values, const algn_vector<float>& weights,
+    const algn_vector<size_t>& index_array, const algn_vector<size_t>& num_values_array,
+    algn_vector<float>* r_coeffs_out, algn_vector<float>* g_coeffs_out,
+    algn_vector<float>* b_coeffs_out, SolverType solverType, int min_samples_per_basis);
+
+template void ProjectConstrainedWeightedSparseSampleStream<float,3>(
+    int num_problems, const algn_vector<Vector3<float>>& dirs,
+    const algn_vector<float>& r_values, const algn_vector<float>& g_values,
+    const algn_vector<float>& b_values, const algn_vector<float>& weights,
+    const algn_vector<size_t>& index_array, const algn_vector<size_t>& num_values_array,
+    algn_vector<float>* r_coeffs_out, algn_vector<float>* g_coeffs_out,
+    algn_vector<float>* b_coeffs_out, SolverType solverType, int min_samples_per_basis);
 
 template void ProjectConstrainedWeightedSparseSampleStream<float,4>(
     int num_problems, const algn_vector<Vector3<float>>& dirs,

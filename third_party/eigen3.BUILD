@@ -9,5 +9,11 @@ cc_library(
         include = ["Eigen/**"],
         exclude = ["Eigen/**/CMakeLists.txt"],
     ),
-    defines = ["EIGEN_MPL2_ONLY"],
+    defines = ["EIGEN_MPL2_ONLY",
+		       "EIGEN_DONT_PARALLELIZE",
+		       "EIGEN_UNALIGNED_VECTORIZE=0",
+		       "EIGEN_MAX_ALIGN_BYTES=32",
+		       "EIGEN_MAX_STATIC_ALIGN_BYTES=32",
+		       "EIGEN_NO_AUTOMATIC_RESIZING",
+    ],
 )
