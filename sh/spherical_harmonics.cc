@@ -71,6 +71,13 @@ template<> struct scalar_type<Array3<double>> { using type = double; };
 template<typename T>
 using scalar_t = typename scalar_type<T>::type;
 
+template<typename T, typename S>
+struct larger_scalar_type { using type = T; };
+template<> struct larger_scalar_type<float, double> { using type = double; };
+template<> struct larger_scalar_type<double, float> { using type = double; };
+template<typename T, typename S>
+using larger_scalar_t = typename larger_scalar_type<T,S>::type;
+
 template <class T>
 using VectorX = Eigen::Matrix<T, Eigen::Dynamic, 1>;
 
@@ -604,6 +611,12 @@ T EvalSHSlow(int l, int m, const Vector3<S>& dir) {
   S phi, theta;
   ToSphericalCoords(dir, &phi, &theta);
   return EvalSH<T,S>(l, m, phi, theta);
+}
+
+template <typename T>
+void EvalSHFast(int order, const Vector3<T>& dir, T* coeffs_out) {
+  CHECK(order <= 9, "EvalSHFast is implemented only up to order 9.");
+  SHEval<T>[order](dir[0], dir[1], dir[2], coeffs_out);
 }
 
 template <typename T, typename S>
@@ -1768,7 +1781,7 @@ void AddWeightedSparseSampleStream(
 template <typename T, typename S>
 T EvalSHSum(int order, const algn_vector<T>& coeffs,
             S phi, S theta) {
-  if (order <= kHardCodedOrderLimit) {
+  if (order <= kEfficientOrderLimit) {
     // It is faster to compute the cartesian coordinates once
     return EvalSHSum<T,S>(order, coeffs, ToVector(phi, theta));
   }
@@ -1787,7 +1800,7 @@ T EvalSHSum(int order, const algn_vector<T>& coeffs,
 template <typename T, typename S>
 T EvalSHSum(int order, const algn_vector<T>& coeffs, 
             const Vector3<S>& dir) {
-  if (order > kHardCodedOrderLimit) {
+  if (order > kEfficientOrderLimit) {
     
     // It is faster to switch to spherical coordinates
     S phi, theta;
@@ -1800,10 +1813,16 @@ T EvalSHSum(int order, const algn_vector<T>& coeffs,
   CHECK(NearByMargin(dir.squaredNorm(), static_cast<S>(1.0)),
         "dir is not unit.");
 
+  std::vector<larger_scalar_t<scalar_t<T>,S>>sh_evals(coeffs.size());
+  SHEval<larger_scalar_t<scalar_t<T>,S>>[order](dir[0],
+                                                dir[1],
+                                                dir[2],
+                                                sh_evals.data());
   T sum = Zero<T>();
   for (int l = 0; l <= order; l++) {
     for (int m = -l; m <= l; m++) {
-      sum += EvalSH<scalar_t<T>,S>(l, m, dir) * coeffs[GetIndex(l, m)];
+      int idx = GetIndex(l, m);
+      sum += static_cast<scalar_t<T>>(sh_evals[idx]) * coeffs[idx];
     }
   }
   return sum;
@@ -2178,6 +2197,13 @@ template Eigen::Array3f EvalSHSum<Eigen::Array3f, float>(
     int order,
     const algn_vector<Eigen::Array3f>& coeffs,
     const Vector3<float>& dir);
+
+template void EvalSHFast<float>(int order,
+                                const Vector3<float>& dir,
+                                float* coeffs_out);
+template void EvalSHFast<double>(int order,
+                                const Vector3<double>& dir,
+                                double* coeffs_out);
 
 template void RenderDiffuseIrradianceMap(const Image<double>& env_map, 
                                          Image<double>* diffuse_out);

@@ -171,6 +171,13 @@ T EvalSHSlow(int l, int m, S phi, S theta);
 template <typename T, typename S>
 T EvalSHSlow(int l, int m, const Vector3<S>& dir);
 
+// Evaluates all SH coefficients simultaneously using an implementation of
+// "Efficient Spherical Harmonic Evaluation" by Peter-Pike Sloan
+// coeffs_out must contain enough space to hold all coefficients for the order
+// specified.
+template <typename T>
+void EvalSHFast(int order, const Vector3<T>& dir, T* coeffs_out);
+
 // Fit the given analytical spherical function to the SH basis functions
 // up to @order. This uses Monte Carlo sampling to estimate the underlying
 // integral. @sample_count determines the number of function evaluations
